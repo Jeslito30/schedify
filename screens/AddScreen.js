@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert, Platform, KeyboardAvoidingView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useSQLiteContext } from 'expo-sqlite';
@@ -38,37 +38,50 @@ const weekDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const AddScreen = ({ navigation, route, user: userProp }) => {
     const db = useSQLiteContext();
     const user = route.params?.user || userProp;
+    const prefilledData = route.params?.prefilledData; // <--- NEW: Get prefilled data
 
     // State to toggle between Task and Schedule
     const [activeType, setActiveType] = useState('Task'); 
     // State for form fields
-    const [taskTitle, setTaskTitle] = useState('');
+    const [taskTitle, setTaskTitle] = useState(prefilledData?.title || ''); // <--- UPDATED
     const [selectedCategory, setSelectedCategory] = useState(taskCategories[0].name);
-    const [description, setDescription] = useState('');
+    const [description, setDescription] = useState(prefilledData?.description || ''); // <--- UPDATED
     const [repeatFrequency, setRepeatFrequency] = useState('none');
     const [repeatDays, setRepeatDays] = useState([]);
     
+    // Helper to parse "YYYY-MM-DD" to Date object
+    const parseDateString = (dateStr) => {
+        if (!dateStr) return new Date();
+        const [y, m, d] = dateStr.split('-').map(Number);
+        return new Date(y, m - 1, d);
+    };
+
+    // Helper to parse "HH:MM AM/PM" to Date object
+    const parseTimeString = (timeStr) => {
+        if (!timeStr) return new Date();
+        const d = new Date();
+        const [time, modifier] = timeStr.split(' ');
+        let [hours, minutes] = time.split(':');
+        if (hours === '12') hours = '00';
+        if (modifier === 'PM') hours = parseInt(hours, 10) + 12;
+        d.setHours(hours, minutes, 0, 0);
+        return d;
+    };
+
     // Date and Time states
-    const [date, setDate] = useState(new Date()); // For Task's due date
+    // <--- UPDATED INITIALIZATION
+    const [date, setDate] = useState(prefilledData?.date ? parseDateString(prefilledData.date) : new Date()); 
     const [startDate, setStartDate] = useState(new Date());
     const [endDate, setEndDate] = useState(new Date());
-    const [time, setTime] = useState(new Date());
+    const [time, setTime] = useState(prefilledData?.time ? parseTimeString(prefilledData.time) : new Date());
+    
     const [showDatePicker, setShowDatePicker] = useState(false);
     const [showTimePicker, setShowTimePicker] = useState(false);
     const [showStartDatePicker, setShowStartDatePicker] = useState(false);
     const [showEndDatePicker, setShowEndDatePicker] = useState(false);
 
-    const handleTypeChange = (type) => {
-        setActiveType(type);
-        // Reset selected category to the first one of the new type
-        if (type === 'Task') {
-            setSelectedCategory(taskCategories[0].name);
-        } else {
-            setSelectedCategory(scheduleCategories[0].name);
-        }
-        setRepeatDays([]); // Reset repeat days on type change
-    };
-
+    // ... (rest of the existing functions: handleTypeChange, formatTime, formatDate, etc.)
+    // We need to redefine formatTime and formatDate here or copy them because they are used in state initialization
     const formatTime = (date) => {
         const hours = date.getHours();
         const minutes = date.getMinutes();
@@ -85,12 +98,23 @@ const AddScreen = ({ navigation, route, user: userProp }) => {
         return `${year}-${month}-${day}`;
     };
 
-    const [dueDate, setDueDate] = useState(formatDate(new Date()));
+    // <--- UPDATED INITIALIZATION
+    const [dueDate, setDueDate] = useState(prefilledData?.date || formatDate(new Date()));
     const [startDateString, setStartDateString] = useState(formatDate(new Date()));
     const [endDateString, setEndDateString] = useState(formatDate(new Date()));
-    const [dueTime, setDueTime] = useState(formatTime(new Date()));
+    const [dueTime, setDueTime] = useState(prefilledData?.time || formatTime(new Date()));
     const [location, setLocation] = useState('');
 
+    const handleTypeChange = (type) => {
+        setActiveType(type);
+        // Reset selected category to the first one of the new type
+        if (type === 'Task') {
+            setSelectedCategory(taskCategories[0].name);
+        } else {
+            setSelectedCategory(scheduleCategories[0].name);
+        }
+        setRepeatDays([]); // Reset repeat days on type change
+    };
 
     // Helper component for category buttons
     const CategoryButton = ({ item }) => {

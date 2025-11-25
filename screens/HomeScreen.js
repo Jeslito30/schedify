@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Image, Modal } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Image, Modal, TextInput, ActivityIndicator, KeyboardAvoidingView, Platform, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { TaskCard } from '../components/TaskCard';
 import { useSQLiteContext } from 'expo-sqlite';
 import { getAllTasks, getTasksByDate, getUpcomingTasks, getCompletedTasks, updateTaskStatus } from '../services/Database';
 import { useIsFocused } from '@react-navigation/native';
 // Importing specific Lucide icons
-import { Bell, Sparkles } from 'lucide-react-native';
+import { getScheduleRecommendation } from '../services/AiServices';
+import { Bell, Sparkles, Mic, X, MessageSquare } from 'lucide-react-native';
 import { Ionicons } from '@expo/vector-icons';
 import EditScreen from './EditScreen';
 
@@ -19,6 +20,7 @@ const LightColors = {
   accentOrange: '#FF9500',
   progressRed: '#FF4500',
   tabInactive: '#E5E5E5',
+  inputBackground: '#F0F0F0',
 };
 
 // --- Utility Function to get Current Date in YYYY-MM-DD format ---
@@ -31,17 +33,17 @@ const getCurrentDate = () => {
   return `${year}-${pad(month)}-${pad(day)}`;
 };
 
-// --- Utility Function to get Current Day Name (e.g., Wednesday) ---
-const getDayName = () => {
-  const date = new Date();
-  const options = { weekday: 'long' };
-  return date.toLocaleDateString('en-US', options);
-};
-
 // --- Utility Function to get formatted date (e.g., October 26, 2023) ---
 const getFormattedDate = () => {
   const date = new Date();
   const options = { year: 'numeric', month: 'long', day: 'numeric' };
+  return date.toLocaleDateString('en-US', options);
+};
+
+// --- Utility Function to get Current Day Name (e.g., Wednesday) ---
+const getDayName = () => {
+  const date = new Date();
+  const options = { weekday: 'long' };
   return date.toLocaleDateString('en-US', options);
 };
 
@@ -75,6 +77,12 @@ const HomeScreen = ({ user, navigation }) => {
   const [allTasks, setAllTasks] = useState([]);
   const [isEditModalVisible, setIsEditModalVisible] = useState(false);
   const [selectedTask, setSelectedTask] = useState(null);
+
+  // --- AI Modal States ---
+  const [isAiModalVisible, setAiModalVisible] = useState(false);
+  const [aiPrompt, setAiPrompt] = useState('');
+  const [aiResult, setAiResult] = useState(null);
+  const [isAiLoading, setIsAiLoading] = useState(false);
 
   const fetchTasks = useCallback(async () => {
     if (user?.id) {
@@ -148,17 +156,54 @@ const HomeScreen = ({ user, navigation }) => {
   const dayName = getDayName();
   const formattedDate = getFormattedDate();
 
-  // Renamed function to handle notification press
   const handleNotificationPress = () => {
     console.log('Notification button pressed!');
   }
 
-  // --- Function to handle AI button press ---
+  // --- AI Logic ---
   const handleAiButtonPress = () => {
-    console.log('AI button pressed!');
+    setAiModalVisible(true);
+    setAiPrompt('');
+    setAiResult(null);
   };
 
-  // --- Function to toggle filter visibility ---
+  const handleAiVoicePress = () => {
+    Alert.alert("Voice Input", "Voice input feature is coming soon!");
+  };
+
+  // --- INTEGRATED AI SUBMIT FUNCTION ---
+  const handleAiSubmit = async () => {
+    if (!aiPrompt.trim()) return;
+    
+    setIsAiLoading(true);
+    
+    try {
+      // 1. Fetch upcoming tasks to provide context (Optimized: Limit to 50)
+      const today = new Date().toISOString().split('T')[0]; 
+      const allUpcomingTasks = await getUpcomingTasks(db, user.id, today);
+      const contextTasks = allUpcomingTasks.slice(0, 50);
+      
+      // 2. Call the real AI Service
+      const recommendation = await getScheduleRecommendation(contextTasks, aiPrompt);
+
+      setAiResult(recommendation);
+      
+    } catch (error) {
+      console.error("AI generation failed:", error);
+      Alert.alert("AI Error", "Could not generate a schedule. Please check your connection.");
+    } finally {
+      setIsAiLoading(false);
+    }
+  };
+
+  const handleAddRecommendation = () => {
+    setAiModalVisible(false);
+    navigation.navigate('Add', { 
+        user: user,
+        prefilledData: aiResult 
+    });
+  };
+
   const toggleFilterVisibility = () => {
     setIsFilterVisible(!isFilterVisible);
   };
@@ -197,18 +242,14 @@ const HomeScreen = ({ user, navigation }) => {
 
         {/* Today's Report Card */}
         <View style={styles.reportCard}>
-          
           <View style={styles.reportHeader}>
             <Text style={styles.reportTitle}>Today's Report</Text>
           </View>
-
           <View style={styles.reportBody}>
-            {/* --- Date and Day Name Display --- */}
             <View>
               <Text style={styles.reportDateLarge}>{dayName}</Text>
               <Text style={styles.reportDateSmall}>{formattedDate}</Text>
             </View>
-            
             <View style={styles.statsContainer}>
                 <View style={styles.statRow}>
                     <Text style={styles.statLabel}>Tasks</Text>
@@ -220,14 +261,12 @@ const HomeScreen = ({ user, navigation }) => {
                 </View>
             </View>
           </View>
-          
           <View style={styles.reportFooter}>
               <Text style={styles.quote}>
                 "Focus on being productive instead of busy."
                 <Text style={styles.quoteAuthor}> - Tim Ferriss</Text>
               </Text>
           </View>
-          
         </View>
 
         {/* List Header with Filter Toggle */}
@@ -290,6 +329,7 @@ const HomeScreen = ({ user, navigation }) => {
           )}
         />
       </View>
+
       <Modal
         visible={isEditModalVisible}
         animationType="slide"
@@ -301,6 +341,70 @@ const HomeScreen = ({ user, navigation }) => {
             onClose={handleCloseEditModal}
           />
         )}
+      </Modal>
+
+      {/* --- AI Modal --- */}
+      <Modal
+        visible={isAiModalVisible}
+        animationType="fade"
+        transparent={true}
+        onRequestClose={() => setAiModalVisible(false)}
+      >
+        <KeyboardAvoidingView 
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            style={styles.modalOverlay}
+        >
+            <View style={styles.aiModalContainer}>
+                <View style={styles.aiModalHeader}>
+                    <View style={styles.aiTitleRow}>
+                        <Sparkles size={24} color={LightColors.accentOrange} style={{marginRight: 8}}/>
+                        <Text style={styles.aiModalTitle}>Smart AI Assistant</Text>
+                    </View>
+                    <TouchableOpacity onPress={() => setAiModalVisible(false)}>
+                        <X size={24} color={LightColors.textSecondary} />
+                    </TouchableOpacity>
+                </View>
+
+                <Text style={styles.aiInstruction}>What do you want to do?</Text>
+
+                <View style={styles.aiInputContainer}>
+                    <TextInput 
+                        style={styles.aiTextInput}
+                        placeholder="e.g., I need to study for Math exam..."
+                        placeholderTextColor={LightColors.textSecondary}
+                        value={aiPrompt}
+                        onChangeText={setAiPrompt}
+                        multiline
+                    />
+                    <TouchableOpacity style={styles.micButton} onPress={handleAiVoicePress}>
+                        <Mic size={20} color={LightColors.textSecondary} />
+                    </TouchableOpacity>
+                </View>
+
+                {isAiLoading ? (
+                    <View style={styles.aiLoadingContainer}>
+                        <ActivityIndicator size="large" color={LightColors.accentOrange} />
+                        <Text style={styles.aiLoadingText}>Analyzing your schedule...</Text>
+                    </View>
+                ) : aiResult ? (
+                    <View style={styles.aiResultContainer}>
+                        <Text style={styles.aiResultLabel}>AI Recommendation:</Text>
+                        <View style={styles.recommendationCard}>
+                            <Text style={styles.recommendationTitle}>{aiResult.title}</Text>
+                            <Text style={styles.recommendationDetail}>{aiResult.date} at {aiResult.time}</Text>
+                            <Text style={styles.recommendationReason}>{aiResult.reason}</Text>
+                        </View>
+                        <TouchableOpacity style={styles.addToScheduleButton} onPress={handleAddRecommendation}>
+                            <Text style={styles.addToScheduleText}>Add to Schedule</Text>
+                        </TouchableOpacity>
+                    </View>
+                ) : (
+                    <TouchableOpacity style={styles.askAiButton} onPress={handleAiSubmit}>
+                        <Text style={styles.askAiButtonText}>Ask AI</Text>
+                    </TouchableOpacity>
+                )}
+            </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* AI Floating Action Button */}
@@ -341,6 +445,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginRight: 10,
   },
+  avatarContainer: {
+    marginRight: 10,
+  },
   avatarText: {
     color: LightColors.card,
     fontWeight: 'bold',
@@ -360,9 +467,6 @@ const styles = StyleSheet.create({
   actionButtons: {
     flexDirection: 'row',
     alignItems: 'center',
-  },
-  bellIcon: {
-      marginRight: 15,
   },
   headerButton: {
     width: 40,
@@ -538,6 +642,128 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 4,
     elevation: 8,
+  },
+  // --- AI Modal Styles ---
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  aiModalContainer: {
+    width: '100%',
+    backgroundColor: LightColors.card,
+    borderRadius: 20,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  aiModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  aiTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  aiModalTitle: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: LightColors.textPrimary,
+  },
+  aiInstruction: {
+    fontSize: 16,
+    color: LightColors.textSecondary,
+    marginBottom: 15,
+  },
+  aiInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: LightColors.inputBackground,
+    borderRadius: 12,
+    paddingHorizontal: 15,
+    marginBottom: 20,
+  },
+  aiTextInput: {
+    flex: 1,
+    paddingVertical: 15,
+    fontSize: 16,
+    color: LightColors.textPrimary,
+    minHeight: 50,
+  },
+  micButton: {
+    padding: 10,
+  },
+  askAiButton: {
+    backgroundColor: LightColors.accentOrange,
+    borderRadius: 12,
+    paddingVertical: 15,
+    alignItems: 'center',
+  },
+  askAiButtonText: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  aiLoadingContainer: {
+    alignItems: 'center',
+    paddingVertical: 20,
+  },
+  aiLoadingText: {
+    marginTop: 10,
+    color: LightColors.textSecondary,
+    fontSize: 16,
+  },
+  aiResultContainer: {
+    marginTop: 10,
+  },
+  aiResultLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: LightColors.textPrimary,
+    marginBottom: 10,
+  },
+  recommendationCard: {
+    backgroundColor: '#FFF8E1', // Light yellow/orange tint
+    padding: 15,
+    borderRadius: 12,
+    borderLeftWidth: 4,
+    borderLeftColor: LightColors.accentOrange,
+    marginBottom: 20,
+  },
+  recommendationTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: LightColors.textPrimary,
+    marginBottom: 5,
+  },
+  recommendationDetail: {
+    fontSize: 16,
+    color: LightColors.accentOrange,
+    fontWeight: '600',
+    marginBottom: 5,
+  },
+  recommendationReason: {
+    fontSize: 14,
+    color: LightColors.textSecondary,
+    fontStyle: 'italic',
+  },
+  addToScheduleButton: {
+    backgroundColor: LightColors.greenAccent || '#4CAF50', // Using green for add action
+    borderRadius: 12,
+    paddingVertical: 15,
+    alignItems: 'center',
+  },
+  addToScheduleText: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: 'bold',
   },
 });
 
