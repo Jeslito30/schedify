@@ -1,52 +1,61 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenAI } from "@google/genai";
 
-// ⚠️ Replace with your actual API Key
-const API_KEY = "API_KEY_HERE"; 
+// ⚠️ Security Warning: Do not store keys in plain text in production.
+const API_KEY = "AIzaSyA8dUQ3N9lEfjJFSDzHGUCSyETN53aoXqQ"; 
 
-const genAI = new GoogleGenerativeAI(API_KEY);
+// Initialize the client with your API key
+const ai = new GoogleGenAI({ apiKey: API_KEY });
 
 export const getScheduleRecommendation = async (userTasks, userPrompt) => {
   try {
-    // FIX: Changed model to 'gemini-1.5-flash-latest' to resolve 404 error
-    const model = genAI.getGenerativeModel({ 
-        model: "gemini-1.5-flash-latest", 
-        generationConfig: { responseMimeType: "application/json" } 
-    });
-
     const currentDate = new Date();
     const dateString = currentDate.toDateString();
     const timeString = currentDate.toLocaleTimeString();
 
+    // 1. Construct the Prompt
     const prompt = `
-      You are a smart scheduling assistant for a React Native app.
+      You are a smart scheduling assistant.
       
       **Context:**
       - Current Date & Time: ${dateString}, ${timeString}
-      - The user's existing schedule/tasks: ${JSON.stringify(userTasks)}
+      - Existing Tasks: ${JSON.stringify(userTasks)}
       
       **User Request:** "${userPrompt}"
       
-      **Goal:**
-      Analyze the existing schedule to find a conflict-free or optimal slot for the user's request. 
-      If the user request implies a specific time (e.g., "tomorrow morning"), prioritize that.
+      **Goal:** Analyze the schedule and suggest the best conflict-free time for the request.
       
       **Output Requirement:**
-      Return ONLY a valid JSON object with no markdown formatting. The JSON must match this structure:
+      Return ONLY a valid JSON object. No markdown, no backticks.
+      Structure:
       {
-        "title": "Short title for the task",
+        "title": "Task Title",
         "description": "Brief description",
         "date": "YYYY-MM-DD",
         "time": "HH:MM AM/PM",
-        "reason": "Short explanation (e.g., 'You are free between 2 PM and 4 PM')"
+        "reason": "Why this time works"
       }
     `;
 
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
-    const text = response.text();
+    // 2. Configure the Model & Request
+    const response = await ai.models.generateContent({
+      model: "gemini-2.0-flash-exp", // or "gemini-1.5-flash"
+      contents: prompt,
+      config: {
+        responseMimeType: "application/json", 
+      }
+    });
+
+    // 3. Parse and Return
+    // FIX: response.text is a property, NOT a function
+    let text = response.text; 
     
-    const recommendation = JSON.parse(text);
-    return recommendation;
+    // Clean up potential markdown formatting if it exists
+    if (text) {
+        text = text.replace(/```json/g, '').replace(/```/g, '').trim();
+    }
+    
+    console.log("AI Response:", text);
+    return JSON.parse(text);
 
   } catch (error) {
     console.error("AI Service Error:", error);

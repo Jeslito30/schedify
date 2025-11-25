@@ -5,7 +5,6 @@ import { TaskCard } from '../components/TaskCard';
 import { useSQLiteContext } from 'expo-sqlite';
 import { getAllTasks, getTasksByDate, getUpcomingTasks, getCompletedTasks, updateTaskStatus } from '../services/Database';
 import { useIsFocused } from '@react-navigation/native';
-// Importing specific Lucide icons
 import { getScheduleRecommendation } from '../services/AiServices';
 import { Bell, Sparkles, Mic, X, MessageSquare } from 'lucide-react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -178,12 +177,14 @@ const HomeScreen = ({ user, navigation }) => {
     setIsAiLoading(true);
     
     try {
-      // 1. Fetch upcoming tasks to provide context (Optimized: Limit to 50)
+      // 1. Fetch upcoming tasks to provide context
       const today = new Date().toISOString().split('T')[0]; 
       const allUpcomingTasks = await getUpcomingTasks(db, user.id, today);
+      
+      // 2. OPTIMIZATION: Limit to next 50 tasks
       const contextTasks = allUpcomingTasks.slice(0, 50);
       
-      // 2. Call the real AI Service
+      // 3. Call the new AI Service
       const recommendation = await getScheduleRecommendation(contextTasks, aiPrompt);
 
       setAiResult(recommendation);
