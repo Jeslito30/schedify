@@ -6,36 +6,24 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { addTask } from '../services/Database';
 import { ChevronLeft, Check, Calendar, Clock, Briefcase, BookOpen, Repeat, Users, CheckSquare, MapPin } from 'lucide-react-native'; 
 
-// --- Constants (Copied for consistency) ---
-const LightColors = {
-  background: '#F2F2F7',
-  card: '#FFFFFF',
-  textPrimary: '#1F1F1F',
-  textSecondary: '#6B7280',
-  accentOrange: '#FF9500', // Primary accent color
-  purpleAccent: '#007AFF', // System blue for primary actions
-  greenAccent: '#4CAF50',
-  blueAccent: '#00BFFF',
-  yellowAccent: '#FFC72C',
-  inputBackground: '#FFFFFF',
-  inputBorder: '#C7C7CC',
-};
+import { useTheme } from '../context/ThemeContext';
 
 // Category definitions based on type
 const scheduleCategories = [
-    { name: 'Class', icon: BookOpen, color: LightColors.accentOrange },
-    { name: 'Routine', icon: Repeat, color: LightColors.blueAccent },
-    { name: 'Meeting', icon: Users, color: LightColors.greenAccent },
-    { name: 'Work', icon: Briefcase, color: LightColors.purpleAccent },
+    { name: 'Class', icon: BookOpen, color: '#FF9500' }, // accentOrange
+    { name: 'Routine', icon: Repeat, color: '#00BFFF' }, // blueAccent
+    { name: 'Meeting', icon: Users, color: '#4CAF50' }, // greenAccent
+    { name: 'Work', icon: Briefcase, color: '#5F50A9' }, // purpleAccent
 ];
 
 const taskCategories = [
-    { name: 'Task', icon: CheckSquare, color: LightColors.yellowAccent },
+    { name: 'Task', icon: CheckSquare, color: '#FFC72C' }, // yellowAccent
 ];
 
 const weekDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 const AddScreen = ({ navigation, route, user: userProp }) => {
+    const { colors } = useTheme();
     const db = useSQLiteContext();
     const user = route.params?.user || userProp;
     const prefilledData = route.params?.prefilledData; // <--- NEW: Get prefilled data
@@ -127,8 +115,8 @@ const AddScreen = ({ navigation, route, user: userProp }) => {
                 ]}
                 onPress={() => setSelectedCategory(item.name)}
             >
-                <item.icon size={24} color={isActive ? LightColors.card : item.color} />
-                <Text style={[styles.categoryText, { color: isActive ? LightColors.card : LightColors.textPrimary }]}>{item.name}</Text>
+                <item.icon size={24} color={isActive ? colors.card : item.color} />
+                <Text style={[styles.categoryText, { color: isActive ? colors.card : colors.textPrimary }]}>{item.name}</Text>
             </TouchableOpacity>
         );
     };
@@ -222,36 +210,36 @@ const AddScreen = ({ navigation, route, user: userProp }) => {
     };
 
     return (
-        <SafeAreaView style={styles.container}>
+        <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
             {/* Header Section - This part stays fixed */}
             <View style={styles.header}>
                 <TouchableOpacity onPress={() => navigation?.goBack()}>
-                    <ChevronLeft size={28} color={LightColors.textPrimary} />
+                    <ChevronLeft size={28} color={colors.textPrimary} />
                 </TouchableOpacity>
-                <Text style={styles.headerTitle}>Add</Text>
+                <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>Add</Text>
             </View>
 
             {/* Subtitle/Instruction - This part also stays fixed */}
-            <Text style={styles.subtitle}>
+            <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
                 Add your schedule or task to stay organized and on track.
             </Text>
 
             {/* Task/Schedule Segmented Control - Now part of the fixed header area */}
-            <View style={styles.segmentedControl}>
+            <View style={[styles.segmentedControl, { backgroundColor: colors.card }]}>
                 <TouchableOpacity 
-                    style={[styles.segment, activeType === 'Task' && styles.segmentActive]}
+                    style={[styles.segment, activeType === 'Task' && [styles.segmentActive, { backgroundColor: colors.purpleAccent + '20' }]]}
                     onPress={() => handleTypeChange('Task')}
                 >
-                    <Check size={20} color={activeType === 'Task' ? LightColors.purpleAccent : LightColors.textSecondary} />
-                    <Text style={[styles.segmentText, activeType === 'Task' && styles.segmentTextActive]}>Task</Text>
+                    <Check size={20} color={activeType === 'Task' ? colors.purpleAccent : colors.textSecondary} />
+                    <Text style={[styles.segmentText, { color: colors.textSecondary }, activeType === 'Task' && [styles.segmentTextActive, { color: colors.purpleAccent }]]}>Task</Text>
                 </TouchableOpacity>
                 
                 <TouchableOpacity 
-                    style={[styles.segment, activeType === 'Schedule' && styles.segmentActive]}
+                    style={[styles.segment, activeType === 'Schedule' && [styles.segmentActive, { backgroundColor: colors.purpleAccent + '20' }]]}
                     onPress={() => handleTypeChange('Schedule')}
                 >
-                    <Calendar size={20} color={activeType === 'Schedule' ? LightColors.purpleAccent : LightColors.textSecondary} />
-                    <Text style={[styles.segmentText, activeType === 'Schedule' && styles.segmentTextActive]}>Schedule</Text>
+                    <Calendar size={20} color={activeType === 'Schedule' ? colors.purpleAccent : colors.textSecondary} />
+                    <Text style={[styles.segmentText, { color: colors.textSecondary }, activeType === 'Schedule' && [styles.segmentTextActive, { color: colors.purpleAccent }]]}>Schedule</Text>
                 </TouchableOpacity>
             </View>
 
@@ -264,30 +252,30 @@ const AddScreen = ({ navigation, route, user: userProp }) => {
                 <ScrollView showsVerticalScrollIndicator={false}>
                     {/* Form Fields */}
 
-                    {/* Task Title */}
-                    <Text style={styles.label}>{activeType === 'Schedule' ? 'Schedule Title' : 'Task title'}</Text>
+                    {/* Task Title */} 
+                    <Text style={[styles.label, { color: colors.textPrimary }]}>{activeType === 'Schedule' ? 'Schedule Title' : 'Task title'}</Text>
                     <TextInput
-                        style={styles.textInput}
+                        style={[styles.textInput, { backgroundColor: colors.inputBackground, color: colors.textPrimary, borderColor: colors.border }]}
                         placeholder={activeType === 'Schedule' ? 'Enter schedule title' : 'Enter task title'}
-                        placeholderTextColor={LightColors.textSecondary}
+                        placeholderTextColor={colors.textSecondary}
                         value={taskTitle}
                         onChangeText={setTaskTitle}
                     />
 
-                    {/* Category Selection */}
-                    <Text style={styles.label}>Category</Text>
-                    <View style={styles.categoryContainer}>
+                    {/* Category Selection */} 
+                    <Text style={[styles.label, { color: colors.textPrimary }]}>Category</Text>
+                    <View style={[styles.categoryContainer, { backgroundColor: colors.background }]}>
                         {(activeType === 'Task' ? taskCategories : scheduleCategories).map(item => (
                             <CategoryButton key={item.name} item={item} />
                         ))}
                     </View>
                     
-                    {/* Description */}
-                    <Text style={styles.label}>Description</Text>
+                    {/* Description */} 
+                    <Text style={[styles.label, { color: colors.textPrimary }]}>Description</Text>
                     <TextInput
-                        style={styles.textArea}
+                        style={[styles.textArea, { backgroundColor: colors.inputBackground, color: colors.textPrimary, borderColor: colors.border }]}
                         placeholder={activeType === 'Task' ? 'Describe your task' : 'Describe your schedule'}
-                        placeholderTextColor={LightColors.textSecondary}
+                        placeholderTextColor={colors.textSecondary}
                         value={description}
                         onChangeText={setDescription}
                         multiline
@@ -296,36 +284,36 @@ const AddScreen = ({ navigation, route, user: userProp }) => {
 
                     {/* Repeat Section - Only for Schedules */}
                     {activeType === 'Schedule' && (
-                        <View>
-                            <Text style={styles.label}>Repeat</Text>
-                            <View style={styles.repeatFrequencyContainer}>
-                                <TouchableOpacity onPress={() => setRepeatFrequency('none')} style={[styles.frequencyButton, repeatFrequency === 'none' && styles.frequencyButtonSelected]}>
-                                    <Text style={[styles.frequencyButtonText, repeatFrequency === 'none' && styles.frequencyButtonTextSelected]}>None</Text>
+                        <View> 
+                            <Text style={[styles.label, { color: colors.textPrimary }]}>Repeat</Text>
+                            <View style={[styles.repeatFrequencyContainer, { backgroundColor: colors.card }]}>
+                                <TouchableOpacity onPress={() => setRepeatFrequency('none')} style={[styles.frequencyButton, repeatFrequency === 'none' && [styles.frequencyButtonSelected, { backgroundColor: colors.purpleAccent }]]}>
+                                    <Text style={[styles.frequencyButtonText, { color: colors.purpleAccent }, repeatFrequency === 'none' && [styles.frequencyButtonTextSelected, { color: colors.card }]]}>None</Text>
                                 </TouchableOpacity>
-                                <TouchableOpacity onPress={() => setRepeatFrequency('daily')} style={[styles.frequencyButton, repeatFrequency === 'daily' && styles.frequencyButtonSelected]}>
-                                    <Text style={[styles.frequencyButtonText, repeatFrequency === 'daily' && styles.frequencyButtonTextSelected]}>Daily</Text>
+                                <TouchableOpacity onPress={() => setRepeatFrequency('daily')} style={[styles.frequencyButton, repeatFrequency === 'daily' && [styles.frequencyButtonSelected, { backgroundColor: colors.purpleAccent }]]}>
+                                    <Text style={[styles.frequencyButtonText, { color: colors.purpleAccent }, repeatFrequency === 'daily' && [styles.frequencyButtonTextSelected, { color: colors.card }]]}>Daily</Text>
                                 </TouchableOpacity>
-                                <TouchableOpacity onPress={() => setRepeatFrequency('weekly')} style={[styles.frequencyButton, repeatFrequency === 'weekly' && styles.frequencyButtonSelected]}>
-                                    <Text style={[styles.frequencyButtonText, repeatFrequency === 'weekly' && styles.frequencyButtonTextSelected]}>Weekly</Text>
+                                <TouchableOpacity onPress={() => setRepeatFrequency('weekly')} style={[styles.frequencyButton, repeatFrequency === 'weekly' && [styles.frequencyButtonSelected, { backgroundColor: colors.purpleAccent }]]}>
+                                    <Text style={[styles.frequencyButtonText, { color: colors.purpleAccent }, repeatFrequency === 'weekly' && [styles.frequencyButtonTextSelected, { color: colors.card }]]}>Weekly</Text>
                                 </TouchableOpacity>
                             </View>
                             {repeatFrequency === 'weekly' &&
-                            <View style={styles.repeatContainer}>
+                            <View style={[styles.repeatContainer, { backgroundColor: colors.card }]}>
                                 {weekDays.map((day, index) => (
-                                    <TouchableOpacity key={index} onPress={() => handleRepeatDayToggle(day)} style={[styles.dayButton, repeatDays.includes(day) && styles.dayButtonSelected]}>
-                                        <Text style={[styles.dayText, repeatDays.includes(day) && styles.dayTextSelected]}>{day.charAt(0)}</Text>
+                                    <TouchableOpacity key={index} onPress={() => handleRepeatDayToggle(day)} style={[styles.dayButton, repeatDays.includes(day) && [styles.dayButtonSelected, { backgroundColor: colors.purpleAccent }]]}>
+                                        <Text style={[styles.dayText, { color: colors.purpleAccent }, repeatDays.includes(day) && [styles.dayTextSelected, { color: colors.card }]]}>{day.charAt(0)}</Text>
                                     </TouchableOpacity>
                                 ))}
                                 <TouchableOpacity 
                                     onPress={handleEverydayToggle} 
                                     style={[
                                         styles.everydayButton,
-                                        repeatDays.length === weekDays.length && styles.dayButtonSelected
+                                        repeatDays.length === weekDays.length && [styles.dayButtonSelected, { backgroundColor: colors.purpleAccent }]
                                     ]}
                                 >
                                     <Text style={[
-                                        styles.everydayText,
-                                        repeatDays.length === weekDays.length && styles.dayTextSelected
+                                        styles.everydayText, { color: colors.purpleAccent },
+                                        repeatDays.length === weekDays.length && [styles.dayTextSelected, { color: colors.card }]
                                     ]}>Everyday</Text>
                                 </TouchableOpacity>
                             </View>
@@ -335,36 +323,36 @@ const AddScreen = ({ navigation, route, user: userProp }) => {
 
                     {/* Time and Date Section */}
                     <View style={styles.dateTimeContainer}>
-                        <View style={styles.dateTimeInputGroup}>
-                            <Text style={styles.label}>{activeType === 'Schedule' ? 'Time' : 'Due Time'}</Text>
+                        <View style={styles.dateTimeInputGroup}> 
+                            <Text style={[styles.label, { color: colors.textPrimary }]}>{activeType === 'Schedule' ? 'Time' : 'Due Time'}</Text>
                             <TouchableOpacity onPress={() => setShowTimePicker(true)} style={styles.dateTimeWrapper}>
-                                <Clock size={20} color={LightColors.textSecondary} style={styles.iconInInput} />
-                                <Text style={[styles.textInput, styles.dateTimeText]}>{dueTime}</Text>
+                                <Clock size={20} color={colors.textSecondary} style={styles.iconInInput} />
+                                <Text style={[styles.textInput, styles.dateTimeText, { backgroundColor: colors.inputBackground, color: colors.textPrimary, borderColor: colors.border }]}>{dueTime}</Text>
                             </TouchableOpacity>
                         </View>
                         
                         {activeType === 'Task' ? (
-                            <View style={styles.dateTimeInputGroup}>
-                                <Text style={styles.label}>Due Date</Text>
+                            <View style={styles.dateTimeInputGroup}> 
+                                <Text style={[styles.label, { color: colors.textPrimary }]}>Due Date</Text>
                                 <TouchableOpacity onPress={() => setShowDatePicker(true)} style={styles.dateTimeWrapper}>
-                                    <Calendar size={20} color={LightColors.textSecondary} style={styles.iconInInput} />
-                                    <Text style={[styles.textInput, styles.dateTimeText]}>{dueDate}</Text>
+                                    <Calendar size={20} color={colors.textSecondary} style={styles.iconInInput} />
+                                    <Text style={[styles.textInput, styles.dateTimeText, { backgroundColor: colors.inputBackground, color: colors.textPrimary, borderColor: colors.border }]}>{dueDate}</Text>
                                 </TouchableOpacity>
                             </View>
                         ) : (
                             <View style={styles.scheduleDateContainer}>
-                                <View style={styles.dateTimeInputGroup}>
-                                    <Text style={styles.label}>Start Date</Text>
+                                <View style={styles.dateTimeInputGroup}> 
+                                    <Text style={[styles.label, { color: colors.textPrimary }]}>Start Date</Text>
                                     <TouchableOpacity onPress={() => setShowStartDatePicker(true)} style={styles.dateTimeWrapper}>
-                                        <Calendar size={20} color={LightColors.textSecondary} style={styles.iconInInput} />
-                                        <Text style={[styles.textInput, styles.dateTimeText]}>{startDateString}</Text>
+                                        <Calendar size={20} color={colors.textSecondary} style={styles.iconInInput} />
+                                        <Text style={[styles.textInput, styles.dateTimeText, { backgroundColor: colors.inputBackground, color: colors.textPrimary, borderColor: colors.border }]}>{startDateString}</Text>
                                     </TouchableOpacity>
                                 </View>
-                                <View style={styles.dateTimeInputGroup}>
-                                    <Text style={styles.label}>End Date</Text>
+                                <View style={styles.dateTimeInputGroup}> 
+                                    <Text style={[styles.label, { color: colors.textPrimary }]}>End Date</Text>
                                     <TouchableOpacity onPress={() => setShowEndDatePicker(true)} style={styles.dateTimeWrapper}>
-                                        <Calendar size={20} color={LightColors.textSecondary} style={styles.iconInInput} />
-                                        <Text style={[styles.textInput, styles.dateTimeText]}>{endDateString}</Text>
+                                        <Calendar size={20} color={colors.textSecondary} style={styles.iconInInput} />
+                                        <Text style={[styles.textInput, styles.dateTimeText, { backgroundColor: colors.inputBackground, color: colors.textPrimary, borderColor: colors.border }]}>{endDateString}</Text>
                                     </TouchableOpacity>
                                 </View>
                             </View>
@@ -378,8 +366,8 @@ const AddScreen = ({ navigation, route, user: userProp }) => {
                             mode="date"
                             display="default"
                             onChange={handleDateChange}
-                            textColor={LightColors.textPrimary}
-                            style={{ backgroundColor: LightColors.card }}
+                            textColor={colors.textPrimary}
+                            style={{ backgroundColor: colors.card }}
                         />
                     )}
 
@@ -390,8 +378,8 @@ const AddScreen = ({ navigation, route, user: userProp }) => {
                             mode="date"
                             display="default"
                             onChange={handleStartDateChange}
-                            textColor={LightColors.textPrimary}
-                            style={{ backgroundColor: LightColors.card }}
+                            textColor={colors.textPrimary}
+                            style={{ backgroundColor: colors.card }}
                         />
                     )}
 
@@ -402,8 +390,8 @@ const AddScreen = ({ navigation, route, user: userProp }) => {
                             mode="date"
                             display="default"
                             onChange={handleEndDateChange}
-                            textColor={LightColors.textPrimary}
-                            style={{ backgroundColor: LightColors.card }}
+                            textColor={colors.textPrimary}
+                            style={{ backgroundColor: colors.card }}
                         />
                     )}
 
@@ -414,30 +402,30 @@ const AddScreen = ({ navigation, route, user: userProp }) => {
                             mode="time"
                             display="default"
                             onChange={handleTimeChange}
-                            textColor={LightColors.textPrimary}
-                            style={{ backgroundColor: LightColors.card }}
+                            textColor={colors.textPrimary}
+                            style={{ backgroundColor: colors.card }}
                         />
                     )}
 
 
-                    {/* Location */}
-                    <Text style={styles.label}>Location</Text>
+                    {/* Location */} 
+                    <Text style={[styles.label, { color: colors.textPrimary }]}>Location</Text>
                     <View style={styles.locationInputContainer}>
                         <TextInput
-                            style={[styles.textInput, styles.locationInput]}
+                            style={[styles.textInput, styles.locationInput, { backgroundColor: colors.inputBackground, color: colors.textPrimary, borderColor: colors.border }]}
                             placeholder="Type or select from map"
-                            placeholderTextColor={LightColors.textSecondary}
+                            placeholderTextColor={colors.textSecondary}
                             value={location}
                             onChangeText={setLocation}
                         />
                         <TouchableOpacity onPress={handleOpenMap} style={styles.mapIcon}>
-                            <MapPin size={22} color={LightColors.accentOrange} />
+                            <MapPin size={22} color={colors.accentOrange} />
                         </TouchableOpacity>
                     </View>
                     
                     {/* Submit Button */}
                     <TouchableOpacity 
-                        style={styles.addButton}
+                        style={[styles.addButton, { backgroundColor: colors.purpleAccent, shadowColor: colors.purpleAccent }]}
                         onPress={handleAdd}
                     >
                         <Text style={styles.addButtonText}>Add {activeType}</Text>
@@ -453,7 +441,6 @@ const AddScreen = ({ navigation, route, user: userProp }) => {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: LightColors.background,
         paddingHorizontal: 20,
     },
     
@@ -465,13 +452,11 @@ const styles = StyleSheet.create({
         marginBottom: 10,
     },
     headerTitle: {
-        color: LightColors.textPrimary,
         fontSize: 30,
         fontWeight: 'bold',
         marginLeft: 20,
     },
     subtitle: {
-        color: LightColors.textSecondary,
         fontSize: 14,
         marginBottom: 20,
         lineHeight: 20,
@@ -480,7 +465,6 @@ const styles = StyleSheet.create({
     // --- Segmented Control (Task/Schedule) ---
     segmentedControl: {
         flexDirection: 'row',
-        backgroundColor: LightColors.card,
         borderRadius: 10,
         marginBottom: 25,
     },
@@ -494,44 +478,34 @@ const styles = StyleSheet.create({
         position: 'relative',
     },
     segmentActive: {
-        backgroundColor: LightColors.purpleAccent + '20', // Light blue tint
         borderRadius: 10,
     },
     segmentText: {
-        color: LightColors.textSecondary,
         fontSize: 16,
         fontWeight: '600',
         marginLeft: 8,
     },
     segmentTextActive: {
-        color: LightColors.purpleAccent,
         fontWeight: 'bold',
     },
 
     // --- Form Elements ---
     label: {
-        color: LightColors.textPrimary,
         fontSize: 16,
         fontWeight: '600',
         marginBottom: 8,
     },
     textInput: {
-        backgroundColor: LightColors.inputBackground,
-        color: LightColors.textPrimary,
         borderRadius: 8,
         borderWidth: 1,
-        borderColor: LightColors.inputBorder,
         paddingHorizontal: 15,
         paddingVertical: 15,
         fontSize: 16,
         marginBottom: 20,
     },
     textArea: {
-        backgroundColor: LightColors.inputBackground,
-        color: LightColors.textPrimary,
         borderRadius: 8,
         borderWidth: 1,
-        borderColor: LightColors.inputBorder,
         paddingHorizontal: 15,
         paddingVertical: 15,
         fontSize: 16,
@@ -548,13 +522,11 @@ const styles = StyleSheet.create({
     },
     categoryButton: {
         width: '23%', 
-        backgroundColor: LightColors.card,
         borderRadius: 10,
         paddingVertical: 15,
         alignItems: 'center',
         justifyContent: 'center',
         borderWidth: 1,
-        borderColor: LightColors.inputBorder,
     },
     categoryText: {
         fontSize: 12,
@@ -566,7 +538,6 @@ const styles = StyleSheet.create({
     repeatFrequencyContainer: {
         flexDirection: 'row',
         justifyContent: 'space-between',
-        backgroundColor: LightColors.card,
         borderRadius: 10,
         padding: 5,
         marginBottom: 10,
@@ -577,20 +548,16 @@ const styles = StyleSheet.create({
         borderRadius: 8,
     },
     frequencyButtonSelected: {
-        backgroundColor: LightColors.purpleAccent,
     },
     frequencyButtonText: {
-        color: LightColors.purpleAccent,
         fontWeight: 'bold',
     },
     frequencyButtonTextSelected: {
-        color: LightColors.card,
     },
     repeatContainer: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        backgroundColor: LightColors.card,
         borderRadius: 10,
         padding: 10,
         marginBottom: 20,
@@ -604,15 +571,12 @@ const styles = StyleSheet.create({
         backgroundColor: 'transparent',
     },
     dayButtonSelected: {
-        backgroundColor: LightColors.purpleAccent,
     },
     dayText: {
-        color: LightColors.purpleAccent,
         fontWeight: 'bold',
         fontSize: 14,
     },
     dayTextSelected: {
-        color: LightColors.card,
     },
     everydayButton: {
         paddingHorizontal: 12,
@@ -622,7 +586,6 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     everydayText: {
-        color: LightColors.purpleAccent,
         fontWeight: 'bold',
         fontSize: 14,
     },
@@ -683,19 +646,16 @@ const styles = StyleSheet.create({
 
     // --- Submit Button ---
     addButton: {
-        backgroundColor: LightColors.purpleAccent, // Use a distinct color for the final action button
         borderRadius: 10,
         padding: 18,
         alignItems: 'center',
         marginVertical: 30,
-        shadowColor: LightColors.purpleAccent,
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.5,
         shadowRadius: 8,
         elevation: 10,
     },
     addButtonText: {
-        color: LightColors.card,
         fontSize: 18,
         fontWeight: 'bold',
     },

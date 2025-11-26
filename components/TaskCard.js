@@ -1,31 +1,21 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Pressable, TouchableOpacity } from 'react-native';
 import { MapPin, Clock, Calendar, Check, Edit, X } from 'lucide-react-native';
-
-const LightColors = {
-  card: '#FFFFFF',
-  textPrimary: '#1F1F1F',
-  textSecondary: '#6B7280',
-  accentOrange: '#FF9500',
-  greenAccent: '#4CAF50',
-  yellowAccent: '#FFC72C',
-  blueAccent: '#00BFFF',
-  purpleAccent: '#5F50A9',
-  cancelRed: '#D32F2F',
-};
+import { useTheme } from '../context/ThemeContext';
 
 const getCategoryTagColor = (type) => {
   switch (type) {
-    case 'Task': return LightColors.yellowAccent;
-    case 'Class': return LightColors.accentOrange;
-    case 'Routine': return LightColors.blueAccent;
-    case 'Meeting': return LightColors.greenAccent;
-    case 'Work': return LightColors.purpleAccent;
-    default: return LightColors.textSecondary;
+    case 'Task': return '#FFC72C'; // yellowAccent
+    case 'Class': return '#FF9500'; // accentOrange
+    case 'Routine': return '#00BFFF'; // blueAccent
+    case 'Meeting': return '#4CAF50'; // greenAccent
+    case 'Work': return '#5F50A9'; // purpleAccent
+    default: return '#6B7280'; // textSecondary
   }
 };
 
 export const TaskCard = ({ id, type, title, description, time, location, date, deadline, status, onDone, onEdit }) => {
+  const { colors } = useTheme();
   const [remainingTime, setRemainingTime] = useState('');
   const [isEditing, setIsEditing] = useState(false);
   const [isPastDeadline, setIsPastDeadline] = useState(false);
@@ -99,21 +89,21 @@ export const TaskCard = ({ id, type, title, description, time, location, date, d
 
   return (
     <Pressable onLongPress={handleLongPress} onPress={() => isEditing && setIsEditing(false)} delayLongPress={300}>
-      <View style={[styles.card, isEditing && styles.cardEditing]}>
+      <View style={[styles.card, { backgroundColor: colors.card, shadowColor: colors.shadow }, isEditing && styles.cardEditing]}>
         {isEditing ? (
           <View style={styles.actionsContainer}>
             {type === 'Task' && status !== 'done' && (
-              <TouchableOpacity style={[styles.actionButton, styles.doneButton]} onPress={handleDonePress}>
-                <Check size={24} color={LightColors.card} />
+              <TouchableOpacity style={[styles.actionButton, { backgroundColor: colors.greenAccent }]} onPress={handleDonePress}>
+                <Check size={24} color={colors.card} />
                 <Text style={styles.actionButtonText}>Done</Text>
               </TouchableOpacity>
             )}
-            <TouchableOpacity style={[styles.actionButton, styles.editButton]} onPress={handleEditPress} activeOpacity={0.7}>
-              <Edit size={24} color={LightColors.card} />
+            <TouchableOpacity style={[styles.actionButton, { backgroundColor: colors.accentOrange }]} onPress={handleEditPress} activeOpacity={0.7}>
+              <Edit size={24} color={colors.card} />
               <Text style={styles.actionButtonText}>Edit</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={[styles.actionButton, styles.cancelButton]} onPress={handleCancelPress} activeOpacity={0.7}>
-              <X size={24} color={LightColors.card} />
+            <TouchableOpacity style={[styles.actionButton, { backgroundColor: colors.cancelRed }]} onPress={handleCancelPress} activeOpacity={0.7}>
+              <X size={24} color={colors.card} />
               <Text style={styles.actionButtonText}>Cancel</Text>
             </TouchableOpacity>
           </View>
@@ -121,38 +111,38 @@ export const TaskCard = ({ id, type, title, description, time, location, date, d
           <>
             <View style={styles.cardContent} pointerEvents="none">
               <View style={styles.topRow}>
-                <View style={[styles.tagContainer, { backgroundColor: getCategoryTagColor(type) }]}>
-                  <Text style={styles.tagText}>{type}</Text>
+                <View style={[styles.tagContainer, { backgroundColor: getCategoryTagColor(type) || colors.textSecondary }]}>
+                  <Text style={[styles.tagText, { color: colors.card }]}>{type}</Text>
                 </View>
                 <View style={styles.locationContainer}>
-                  <MapPin size={16} color={LightColors.textSecondary} style={styles.locationIcon} />
-                  {location ? <Text style={styles.locationText}>{location}</Text> : null}
+                  <MapPin size={16} color={colors.textSecondary} style={styles.locationIcon} />
+                  {location ? <Text style={[styles.locationText, { color: colors.textSecondary }]}>{location}</Text> : null}
                 </View>
               </View>
-              <Text style={styles.titleText}>{title}</Text>
+              <Text style={[styles.titleText, { color: colors.textPrimary }]}>{title}</Text>
               {description && (
                 <>
-                  <Text style={styles.detailsText}>{description}</Text>
-                  <View style={styles.horizontalLine} />
+                  <Text style={[styles.detailsText, { color: colors.textSecondary }]}>{description}</Text>
+                  <View style={[styles.horizontalLine, { backgroundColor: colors.textSecondary }]} />
                 </>
               )}
               <View style={styles.timeRow}>
                 <View style={styles.dateTimeContainer}>
                   <View style={styles.timeDetail}>
-                    <Calendar size={14} color={LightColors.textSecondary} style={styles.timeIcon} />
-                    <Text style={styles.timeText}>{date}</Text>
+                    <Calendar size={14} color={colors.textSecondary} style={styles.timeIcon} />
+                    <Text style={[styles.timeText, { color: colors.textSecondary }]}>{date}</Text>
                   </View>
                   <View style={styles.timeDetail}>
-                    <Clock size={14} color={LightColors.textSecondary} style={styles.timeIcon} />
-                    <Text style={styles.timeText}>{time}</Text>
+                    <Clock size={14} color={colors.textSecondary} style={styles.timeIcon} />
+                    <Text style={[styles.timeText, { color: colors.textSecondary }]}>{time}</Text>
                   </View>
                 </View>
                 {status === 'done' ? (
-                  <Text style={styles.doneText}>Done</Text>
+                  <Text style={[styles.doneText, { color: colors.greenAccent }]}>Done</Text>
                 ) : isPastDeadline && type !== 'Task' ? (
-                  <Text style={styles.doneText}>Done</Text>
+                  <Text style={[styles.doneText, { color: colors.greenAccent }]}>Done</Text>
                 ) : (
-                  <Text style={[styles.remainingText, remainingTime === 'Missed' && { color: LightColors.cancelRed }]}>{remainingTime}</Text>
+                  <Text style={[styles.remainingText, { color: colors.accentOrange }, remainingTime === 'Missed' && { color: colors.cancelRed }]}>{remainingTime}</Text>
                 )}
               </View>
             </View>
@@ -165,11 +155,9 @@ export const TaskCard = ({ id, type, title, description, time, location, date, d
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: LightColors.card,
     borderRadius: 12,
     marginBottom: 12,
     elevation: 3,
-    shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
     shadowRadius: 3.84,
@@ -196,7 +184,6 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start', // Ensures the badge only takes up as much space as its content
   },
   tagText: {
-    color: LightColors.card,
     fontSize: 14, // Same size as description
     fontWeight: 'bold',
   },
@@ -208,22 +195,18 @@ const styles = StyleSheet.create({
     marginRight: 4,
   },
   locationText: {
-    color: LightColors.textSecondary,
     fontSize: 13,
   },
   titleText: {
-    color: LightColors.textPrimary,
     fontSize: 22,
     fontWeight: 'bold',
     marginBottom: 8, // Add space below the title
   },
   detailsText: {
-    color: LightColors.textSecondary,
     fontSize: 14,
   },
   horizontalLine: {
     height: 1,
-    backgroundColor: LightColors.textSecondary,
     opacity: 0.2,
     marginVertical: 12,
   },
@@ -245,16 +228,13 @@ const styles = StyleSheet.create({
       marginRight: 4,
   },
   timeText: {
-    color: LightColors.textSecondary,
     fontSize: 12,
   },
   remainingText: {
-    color: LightColors.accentOrange,
     fontWeight: 'bold',
     fontSize: 12,
   },
   doneText: {
-    color: LightColors.greenAccent,
     fontWeight: 'bold',
     fontSize: 12,
   },
@@ -271,17 +251,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 14,
   },
-  doneButton: {
-    backgroundColor: LightColors.greenAccent,
-  },
-  editButton: {
-    backgroundColor: LightColors.accentOrange,
-  },
-  cancelButton: {
-    backgroundColor: LightColors.cancelRed,
-  },
   actionButtonText: {
-    color: LightColors.card,
     fontSize: 18,
     fontWeight: 'bold',
     marginTop: 8,

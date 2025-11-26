@@ -9,18 +9,8 @@ import { getScheduleRecommendation } from '../services/AiServices';
 import { Bell, Sparkles, Mic, X, MessageSquare } from 'lucide-react-native';
 import { Ionicons } from '@expo/vector-icons';
 import EditScreen from './EditScreen';
+import { useTheme } from '../context/ThemeContext';
 
-// --- Constants ---
-const LightColors = {
-  background: '#F2F2F7',
-  card: '#FFFFFF',
-  textPrimary: '#1F1F1F',
-  textSecondary: '#6B7280',
-  accentOrange: '#FF9500',
-  progressRed: '#FF4500',
-  tabInactive: '#E5E5E5',
-  inputBackground: '#F0F0F0',
-};
 
 // --- Utility Function to get Current Date in YYYY-MM-DD format ---
 const getCurrentDate = () => {
@@ -62,6 +52,7 @@ const convertTo24HourFormat = (time12h) => {
 };
 
 const HomeScreen = ({ user, navigation }) => {
+  const { colors } = useTheme();
   const userName = user.name;
   const initial = userName.split(' ').map(n => n[0]).join('');
   const db = useSQLiteContext();
@@ -213,7 +204,7 @@ const HomeScreen = ({ user, navigation }) => {
   const donePercentage = allTasks.length > 0 ? Math.round((completedTasksCount / allTasks.length) * 100) : 0;
 
   return (
-    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'left', 'right']}>
       <View style={styles.content}>
         <View style={styles.header}>
           <View style={styles.userInfo}>
@@ -222,57 +213,57 @@ const HomeScreen = ({ user, navigation }) => {
               {profilePicture ? (
                 <Image source={{ uri: profilePicture }} style={styles.avatar} />
               ) : (
-                <View style={styles.avatar}>
-                  <Text style={styles.avatarText}>{initial}</Text>
+                <View style={[styles.avatar, { backgroundColor: colors.accentOrange }]}>
+                  <Text style={[styles.avatarText, { color: colors.card }]}>{initial}</Text>
                 </View>
               )}
             </View>
           </TouchableOpacity>
             <View>
-              <Text style={styles.greetingText}>Hey,</Text>
-              <Text style={styles.userNameText}>{userName}</Text>
+              <Text style={[styles.greetingText, { color: colors.textSecondary }]}>Hey,</Text>
+              <Text style={[styles.userNameText, { color: colors.textPrimary }]}>{userName}</Text>
             </View>
           </View>
           
           <View style={styles.actionButtons}>
-              <TouchableOpacity style={styles.headerButton} onPress={handleNotificationPress}>
-                  <Bell size={24} color={LightColors.card} />
+              <TouchableOpacity style={[styles.headerButton, { backgroundColor: colors.accentOrange, shadowColor: colors.accentOrange }]} onPress={handleNotificationPress}>
+                  <Bell size={24} color={colors.card} />
               </TouchableOpacity>
           </View>
         </View>
 
         {/* Today's Report Card */}
-        <View style={styles.reportCard}>
+        <View style={[styles.reportCard, { backgroundColor: colors.card }]}>
           <View style={styles.reportHeader}>
-            <Text style={styles.reportTitle}>Today's Report</Text>
+            <Text style={[styles.reportTitle, { color: colors.textPrimary }]}>Today's Report</Text>
           </View>
           <View style={styles.reportBody}>
             <View>
-              <Text style={styles.reportDateLarge}>{dayName}</Text>
-              <Text style={styles.reportDateSmall}>{formattedDate}</Text>
+              <Text style={[styles.reportDateLarge, { color: colors.textPrimary }]}>{dayName}</Text>
+              <Text style={[styles.reportDateSmall, { color: colors.textSecondary }]}>{formattedDate}</Text>
             </View>
             <View style={styles.statsContainer}>
                 <View style={styles.statRow}>
-                    <Text style={styles.statLabel}>Tasks</Text>
-                    <Text style={styles.statValue}>{allTasks.length}</Text>
+                    <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Tasks</Text>
+                    <Text style={[styles.statValue, { color: colors.textPrimary }]}>{allTasks.length}</Text>
                 </View>
                 <View style={styles.statRow}>
-                    <Text style={styles.statLabel}>Done</Text>
-                    <Text style={[styles.statValue, { color: LightColors.accentOrange }]}>{donePercentage}%</Text>
+                    <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Done</Text>
+                    <Text style={[styles.statValue, { color: colors.accentOrange }]}>{donePercentage}%</Text>
                 </View>
             </View>
           </View>
           <View style={styles.reportFooter}>
-              <Text style={styles.quote}>
+              <Text style={[styles.quote, { color: colors.textSecondary }]}>
                 "Focus on being productive instead of busy."
-                <Text style={styles.quoteAuthor}> - Tim Ferriss</Text>
+                <Text style={[styles.quoteAuthor, { color: colors.textSecondary }]}> - Tim Ferriss</Text>
               </Text>
           </View>
         </View>
 
         {/* List Header with Filter Toggle */}
         <View style={styles.listHeaderContainer}>
-          <Text style={styles.listHeaderTitle}>
+          <Text style={[styles.listHeaderTitle, { color: colors.textPrimary }]}>
             {activeFilter === 'Schedule'
               ? 'My Schedules'
               : activeFilter === 'All'
@@ -280,34 +271,34 @@ const HomeScreen = ({ user, navigation }) => {
               : 'My Tasks'}
           </Text>
           <TouchableOpacity onPress={toggleFilterVisibility} style={styles.filterIcon}>
-            <Ionicons name="options-outline" size={24} color={isFilterVisible ? LightColors.accentOrange : LightColors.textSecondary} />
+            <Ionicons name="options-outline" size={24} color={isFilterVisible ? colors.accentOrange : colors.textSecondary} />
           </TouchableOpacity>
         </View>
 
         {/* Toggleable Filter Tabs for Task/Schedule */}
         {isFilterVisible && (
-          <View style={styles.filterTabsContainer}>
+          <View style={[styles.filterTabsContainer, { borderBottomColor: colors.tabInactive }]}>
             {['All', 'Task', 'Schedule'].map((filter) => (
               <TouchableOpacity
                 key={filter}
-                style={[styles.filterTabButton, activeFilter === filter && styles.filterTabActive]}
+                style={[styles.filterTabButton, activeFilter === filter && [styles.filterTabActive, { borderBottomColor: colors.accentOrange }]]}
                 onPress={() => setActiveFilter(filter)}
               >
-                <Text style={[styles.filterTabText, activeFilter === filter && styles.filterTabTextActive]}>{filter}</Text>
+                <Text style={[styles.filterTabText, { color: colors.textSecondary }, activeFilter === filter && [styles.filterTabTextActive, { color: colors.textPrimary }]]}>{filter}</Text>
               </TouchableOpacity>
             ))}
           </View>
         )}
 
         {/* Navigation Tabs */}
-        <View style={styles.tabsContainer}>
+        <View style={[styles.tabsContainer, { backgroundColor: colors.background }]}>
           {['All', 'Today', 'Upcoming', 'Completed'].map((tab) => (
             <TouchableOpacity
               key={tab}
-              style={[styles.tabButton, activeTab === tab && styles.tabActive]}
+              style={[styles.tabButton, activeTab === tab && [styles.tabActive, { borderBottomColor: colors.accentOrange }]]}
               onPress={() => setActiveTab(tab)}
             >
-              <Text style={[styles.tabText, activeTab === tab && styles.tabTextActive]}>{tab}</Text>
+              <Text style={[styles.tabText, { color: colors.textSecondary }, activeTab === tab && [styles.tabTextActive, { color: colors.textPrimary }]]}>{tab}</Text>
             </TouchableOpacity>
           ))}
         </View>
@@ -325,7 +316,7 @@ const HomeScreen = ({ user, navigation }) => {
           showsVerticalScrollIndicator={false}
           ListEmptyComponent={() => (
             <View style={styles.emptyTasks}>
-              <Text style={styles.emptyText}>No tasks to display.</Text>
+              <Text style={[styles.emptyText, { color: colors.textPrimary }]}>No tasks to display.</Text>
             </View>
           )}
         />
@@ -355,52 +346,52 @@ const HomeScreen = ({ user, navigation }) => {
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
             style={styles.modalOverlay}
         >
-            <View style={styles.aiModalContainer}>
+            <View style={[styles.aiModalContainer, { backgroundColor: colors.card }]}>
                 <View style={styles.aiModalHeader}>
                     <View style={styles.aiTitleRow}>
-                        <Sparkles size={24} color={LightColors.accentOrange} style={{marginRight: 8}}/>
-                        <Text style={styles.aiModalTitle}>Smart AI Assistant</Text>
+                        <Sparkles size={24} color={colors.accentOrange} style={{marginRight: 8}}/>
+                        <Text style={[styles.aiModalTitle, { color: colors.textPrimary }]}>Smart AI Assistant</Text>
                     </View>
                     <TouchableOpacity onPress={() => setAiModalVisible(false)}>
-                        <X size={24} color={LightColors.textSecondary} />
+                        <X size={24} color={colors.textSecondary} />
                     </TouchableOpacity>
                 </View>
 
-                <Text style={styles.aiInstruction}>What do you want to do?</Text>
+                <Text style={[styles.aiInstruction, { color: colors.textSecondary }]}>What do you want to do?</Text>
 
-                <View style={styles.aiInputContainer}>
+                <View style={[styles.aiInputContainer, { backgroundColor: colors.inputBackground }]}>
                     <TextInput 
-                        style={styles.aiTextInput}
+                        style={[styles.aiTextInput, { color: colors.textPrimary }]}
                         placeholder="e.g., I need to study for Math exam..."
-                        placeholderTextColor={LightColors.textSecondary}
+                        placeholderTextColor={colors.textSecondary}
                         value={aiPrompt}
                         onChangeText={setAiPrompt}
                         multiline
                     />
                     <TouchableOpacity style={styles.micButton} onPress={handleAiVoicePress}>
-                        <Mic size={20} color={LightColors.textSecondary} />
+                        <Mic size={20} color={colors.textSecondary} />
                     </TouchableOpacity>
                 </View>
 
                 {isAiLoading ? (
                     <View style={styles.aiLoadingContainer}>
-                        <ActivityIndicator size="large" color={LightColors.accentOrange} />
-                        <Text style={styles.aiLoadingText}>Analyzing your schedule...</Text>
+                        <ActivityIndicator size="large" color={colors.accentOrange} />
+                        <Text style={[styles.aiLoadingText, { color: colors.textSecondary }]}>Analyzing your schedule...</Text>
                     </View>
                 ) : aiResult ? (
                     <View style={styles.aiResultContainer}>
-                        <Text style={styles.aiResultLabel}>AI Recommendation:</Text>
-                        <View style={styles.recommendationCard}>
-                            <Text style={styles.recommendationTitle}>{aiResult.title}</Text>
-                            <Text style={styles.recommendationDetail}>{aiResult.date} at {aiResult.time}</Text>
-                            <Text style={styles.recommendationReason}>{aiResult.reason}</Text>
+                        <Text style={[styles.aiResultLabel, { color: colors.textPrimary }]}>AI Recommendation:</Text>
+                        <View style={[styles.recommendationCard, { backgroundColor: colors.accentOrange + '20', borderLeftColor: colors.accentOrange }]}>
+                            <Text style={[styles.recommendationTitle, { color: colors.textPrimary }]}>{aiResult.title}</Text>
+                            <Text style={[styles.recommendationDetail, { color: colors.accentOrange }]}>{aiResult.date} at {aiResult.time}</Text>
+                            <Text style={[styles.recommendationReason, { color: colors.textSecondary }]}>{aiResult.reason}</Text>
                         </View>
-                        <TouchableOpacity style={styles.addToScheduleButton} onPress={handleAddRecommendation}>
+                        <TouchableOpacity style={[styles.addToScheduleButton, { backgroundColor: colors.greenAccent }]} onPress={handleAddRecommendation}>
                             <Text style={styles.addToScheduleText}>Add to Schedule</Text>
                         </TouchableOpacity>
                     </View>
                 ) : (
-                    <TouchableOpacity style={styles.askAiButton} onPress={handleAiSubmit}>
+                    <TouchableOpacity style={[styles.askAiButton, { backgroundColor: colors.accentOrange }]} onPress={handleAiSubmit}>
                         <Text style={styles.askAiButtonText}>Ask AI</Text>
                     </TouchableOpacity>
                 )}
@@ -409,8 +400,8 @@ const HomeScreen = ({ user, navigation }) => {
       </Modal>
 
       {/* AI Floating Action Button */}
-      <TouchableOpacity style={styles.aiButton} onPress={handleAiButtonPress}>
-        <Sparkles size={30} color={LightColors.card} />
+      <TouchableOpacity style={[styles.aiButton, { backgroundColor: colors.accentOrange, shadowColor: colors.accentOrange }]} onPress={handleAiButtonPress}>
+        <Sparkles size={30} color={colors.card} />
       </TouchableOpacity>
 
     </SafeAreaView>
@@ -421,7 +412,6 @@ const HomeScreen = ({ user, navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: LightColors.background,
   },
   content: {
     flex: 1,
@@ -441,7 +431,6 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: LightColors.accentOrange,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 10,
@@ -450,17 +439,14 @@ const styles = StyleSheet.create({
     marginRight: 10,
   },
   avatarText: {
-    color: LightColors.card,
     fontWeight: 'bold',
     fontSize: 16,
   },
   greetingText: {
-    color: LightColors.textSecondary,
     fontSize: 14,
     lineHeight: 16,
   },
   userNameText: {
-    color: LightColors.textPrimary,
     fontWeight: 'bold',
     fontSize: 18,
     lineHeight: 20,
@@ -473,10 +459,8 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: LightColors.accentOrange,
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: LightColors.accentOrange,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.5,
     shadowRadius: 5,
@@ -484,7 +468,6 @@ const styles = StyleSheet.create({
   },
 
   reportCard: {
-    backgroundColor: LightColors.card,
     borderRadius: 15,
     padding: 18,
     marginTop: 20,
@@ -496,7 +479,6 @@ const styles = StyleSheet.create({
     marginBottom: 5,
   },
   reportTitle: {
-    color: LightColors.textPrimary,
     fontSize: 18,
     fontWeight: 'bold',
   },
@@ -507,11 +489,9 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   reportDateSmall: {
-    color: LightColors.textSecondary,
     fontSize: 16,
   },
   reportDateLarge: {
-    color: LightColors.textPrimary,
     fontSize: 32,
     fontWeight: 'bold',
     marginBottom: 2,
@@ -527,17 +507,14 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   statLabel: {
-    color: LightColors.textSecondary,
     fontSize: 16,
   },
   statValue: {
-    color: LightColors.textPrimary,
     fontSize: 18,
     fontWeight: 'bold',
   },
   reportFooter: {},
   quote: {
-    color: LightColors.textSecondary,
     fontSize: 14,
     marginTop: 15,
     lineHeight: 18,
@@ -556,7 +533,6 @@ const styles = StyleSheet.create({
   listHeaderTitle: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: LightColors.textPrimary,
   },
   filterIcon: {
     padding: 5,
@@ -565,10 +541,8 @@ const styles = StyleSheet.create({
   filterTabsContainer: {
     flexDirection: 'row',
     justifyContent: 'flex-start',
-    backgroundColor: LightColors.background,
     paddingBottom: 5,
     borderBottomWidth: 2,
-    borderBottomColor: LightColors.tabInactive,
   },
   filterTabButton: {
     paddingVertical: 10,
@@ -577,15 +551,12 @@ const styles = StyleSheet.create({
   },
   filterTabActive: {
     borderBottomWidth: 3,
-    borderBottomColor: LightColors.accentOrange,
   },
   filterTabText: {
-    color: LightColors.textSecondary,
     fontSize: 16,
     fontWeight: '500',
   },
   filterTabTextActive: {
-    color: LightColors.textPrimary,
     fontWeight: 'bold',
   },
 
@@ -593,7 +564,6 @@ const styles = StyleSheet.create({
   tabsContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    backgroundColor: LightColors.background,
     marginBottom: 10,
     paddingVertical: 5,
   },
@@ -603,15 +573,12 @@ const styles = StyleSheet.create({
   },
   tabActive: {
       borderBottomWidth: 2,
-      borderBottomColor: LightColors.accentOrange,
   },
   tabText: {
-    color: LightColors.textSecondary,
     fontSize: 16,
     fontWeight: '500',
   },
   tabTextActive: {
-      color: LightColors.textPrimary,
       fontWeight: 'bold',
   },
   taskList: {
@@ -623,7 +590,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   emptyText: {
-    color: LightColors.textPrimary,
     fontSize: 18,
     fontWeight: '600',
     marginBottom: 5,
@@ -635,10 +601,8 @@ const styles = StyleSheet.create({
     width: 60,
     height: 60,
     borderRadius: 30,
-    backgroundColor: LightColors.accentOrange,
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: LightColors.accentOrange,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 4,
@@ -654,7 +618,6 @@ const styles = StyleSheet.create({
   },
   aiModalContainer: {
     width: '100%',
-    backgroundColor: LightColors.card,
     borderRadius: 20,
     padding: 20,
     shadowColor: '#000',
@@ -676,17 +639,14 @@ const styles = StyleSheet.create({
   aiModalTitle: {
     fontSize: 22,
     fontWeight: 'bold',
-    color: LightColors.textPrimary,
   },
   aiInstruction: {
     fontSize: 16,
-    color: LightColors.textSecondary,
     marginBottom: 15,
   },
   aiInputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: LightColors.inputBackground,
     borderRadius: 12,
     paddingHorizontal: 15,
     marginBottom: 20,
@@ -695,14 +655,12 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: 15,
     fontSize: 16,
-    color: LightColors.textPrimary,
     minHeight: 50,
   },
   micButton: {
     padding: 10,
   },
   askAiButton: {
-    backgroundColor: LightColors.accentOrange,
     borderRadius: 12,
     paddingVertical: 15,
     alignItems: 'center',
@@ -718,7 +676,6 @@ const styles = StyleSheet.create({
   },
   aiLoadingText: {
     marginTop: 10,
-    color: LightColors.textSecondary,
     fontSize: 16,
   },
   aiResultContainer: {
@@ -727,36 +684,29 @@ const styles = StyleSheet.create({
   aiResultLabel: {
     fontSize: 16,
     fontWeight: '600',
-    color: LightColors.textPrimary,
     marginBottom: 10,
   },
   recommendationCard: {
-    backgroundColor: '#FFF8E1', // Light yellow/orange tint
     padding: 15,
     borderRadius: 12,
     borderLeftWidth: 4,
-    borderLeftColor: LightColors.accentOrange,
     marginBottom: 20,
   },
   recommendationTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: LightColors.textPrimary,
     marginBottom: 5,
   },
   recommendationDetail: {
     fontSize: 16,
-    color: LightColors.accentOrange,
     fontWeight: '600',
     marginBottom: 5,
   },
   recommendationReason: {
     fontSize: 14,
-    color: LightColors.textSecondary,
     fontStyle: 'italic',
   },
   addToScheduleButton: {
-    backgroundColor: LightColors.greenAccent || '#4CAF50', // Using green for add action
     borderRadius: 12,
     paddingVertical: 15,
     alignItems: 'center',

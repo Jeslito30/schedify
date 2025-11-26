@@ -5,16 +5,7 @@ import { TaskCard } from '../components/TaskCard';
 import { useSQLiteContext } from 'expo-sqlite';
 import { getMissedTasks, updateTaskStatus } from '../services/Database';
 import { useIsFocused } from '@react-navigation/native';
-
-// --- Color Constants ---
-const LightColors = {
-  background: '#F8F9FA', // Very light grey
-  card: '#FFFFFF',
-  textPrimary: '#212529', // Dark grey/black
-  textSecondary: '#6C757D', // Grey
-  accentOrange: '#FF9500',
-  progressRed: '#FF4500',  // Used for the 'Missed' indicator
-};
+import { useTheme } from '../context/ThemeContext';
 
 // --- Utility Function to convert 12-hour time to 24-hour time ---
 const convertTo24HourFormat = (time12h) => {
@@ -42,6 +33,7 @@ const getCurrentDate = () => {
 };
 
 const MissedScreen = ({ user }) => {
+    const { colors } = useTheme();
     const db = useSQLiteContext();
     const [missedTasks, setMissedTasks] = useState([]);
     const isFocused = useIsFocused();
@@ -87,22 +79,22 @@ const MissedScreen = ({ user }) => {
     };
 
     return (
-        <SafeAreaView style={styles.container} edges={['top']}>
-            <View style={styles.header}>
-                <Text style={styles.titleText}>Missed</Text>
+        <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
+            <View style={[styles.header, { backgroundColor: colors.background }]}>
+                <Text style={[styles.titleText, { color: colors.textPrimary }]}>Missed</Text>
             </View>
 
             {/* Filter Tabs */}
             <View style={styles.tabsContainer}>
                 <TouchableOpacity
-                    style={[styles.tabButton, activeFilter === 'Today' && styles.tabActive]}
+                    style={[styles.tabButton, activeFilter === 'Today' && [styles.tabActive, { borderBottomColor: colors.accentOrange }]]}
                     onPress={() => setActiveFilter('Today')}>
-                    <Text style={[styles.tabText, activeFilter === 'Today' && styles.tabTextActive]}>Today</Text>
+                    <Text style={[styles.tabText, { color: colors.textSecondary }, activeFilter === 'Today' && [styles.tabTextActive, { color: colors.textPrimary }]]}>Today</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                    style={[styles.tabButton, activeFilter === 'All' && styles.tabActive]}
+                    style={[styles.tabButton, activeFilter === 'All' && [styles.tabActive, { borderBottomColor: colors.accentOrange }]]}
                     onPress={() => setActiveFilter('All')}>
-                    <Text style={[styles.tabText, activeFilter === 'All' && styles.tabTextActive]}>All</Text>
+                    <Text style={[styles.tabText, { color: colors.textSecondary }, activeFilter === 'All' && [styles.tabTextActive, { color: colors.textPrimary }]]}>All</Text>
                 </TouchableOpacity>
             </View>
 
@@ -119,7 +111,7 @@ const MissedScreen = ({ user }) => {
                 showsVerticalScrollIndicator={false}
                 ListEmptyComponent={() => (
                     <View style={styles.emptyTasks}>
-                        <Text style={styles.emptyText}>No missed tasks.</Text>
+                        <Text style={[styles.emptyText, { color: colors.textPrimary }]}>No missed tasks.</Text>
                     </View>
                 )}
             />
@@ -131,7 +123,6 @@ const MissedScreen = ({ user }) => {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: LightColors.background,
         paddingHorizontal: 15, // Apply horizontal padding to the whole screen
     },
 
@@ -143,7 +134,6 @@ const styles = StyleSheet.create({
         marginBottom: 20,
     },
     titleText: {
-        color: LightColors.textPrimary,
         fontSize: 25,
         fontWeight: 'bold',
     },
@@ -160,15 +150,12 @@ const styles = StyleSheet.create({
     },
     tabActive: {
         borderBottomWidth: 2,
-        borderBottomColor: LightColors.accentOrange,
     },
     tabText: {
-        color: LightColors.textSecondary,
         fontSize: 16,
         fontWeight: '500',
     },
     tabTextActive: {
-        color: LightColors.textPrimary,
         fontWeight: 'bold',
     },
     taskList: {
@@ -181,7 +168,6 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
     },
     emptyText: {
-        color: LightColors.textPrimary,
         fontSize: 18,
         fontWeight: '600',
         marginBottom: 5,

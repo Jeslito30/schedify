@@ -6,6 +6,7 @@ import { TouchableOpacity, StyleSheet, View, Text } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import MaskedView from '@react-native-masked-view/masked-view';
 import { NavigationContainer } from '@react-navigation/native';
+import { useTheme } from '../context/ThemeContext';
 
 // Screens
 import HomeScreen from '../screens/HomeScreen';
@@ -14,26 +15,16 @@ import MissedScreen from '../screens/MissedScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 import AddScreen from '../screens/AddScreen';
 
-// --- Constants ---
-const LightColors = {
-  background: '#F2F2F7',
-  card: '#FFFFFF',
-  textPrimary: '#1F1F1F',
-  textSecondary: '#6B7280',
-  accentOrange: '#FF9500', 
-  progressRed: '#FF4500',  
-};
-
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
 
 // Gradient icon wrapper
-const GradientIcon = ({ IconComponent, size = 26, color }) => (
+const GradientIcon = ({ IconComponent, size = 26, colors }) => (
   <MaskedView
     maskElement={<IconComponent color="black" size={size} />}
   >
     <LinearGradient
-      colors={[LightColors.accentOrange, LightColors.progressRed]}
+      colors={[colors.accentOrange, colors.progressRed]}
       start={{ x: 0, y: 0 }}
       end={{ x: 1, y: 1 }}
       style={{ width: size, height: size }}
@@ -42,13 +33,15 @@ const GradientIcon = ({ IconComponent, size = 26, color }) => (
 );
 
 const TabNavigator = ({ user, onLogout }) => {
+  const { colors } = useTheme();
+
   return (
     <Tab.Navigator
       initialRouteName="HomeTab"
       screenOptions={{
         tabBarShowLabel: true, // Show labels
         tabBarStyle: {
-          backgroundColor: LightColors.card,
+          backgroundColor: colors.card,
           paddingTop: 5, // Added padding to the top
           // marginTop: 5,
           borderTopWidth: 0,
@@ -57,8 +50,8 @@ const TabNavigator = ({ user, onLogout }) => {
           // Removed borderTopLeftRadius and borderTopRightRadius
           overflow: 'hidden',
         },
-        tabBarActiveTintColor: LightColors.accentOrange,
-        tabBarInactiveTintColor: LightColors.textSecondary,
+        tabBarActiveTintColor: colors.tabActive,
+        tabBarInactiveTintColor: colors.tabInactive,
         tabBarLabelStyle: {
             fontSize: 12,
             fontWeight: '600',
@@ -74,7 +67,7 @@ const TabNavigator = ({ user, onLogout }) => {
           tabBarLabel: 'Home',
           headerShown: false,
           tabBarIcon: ({ focused, color, size }) =>
-            focused ? <GradientIcon IconComponent={Home} size={24} color={color} /> : <Home color={color} size={24} />,
+            focused ? <GradientIcon IconComponent={Home} size={24} colors={colors} /> : <Home color={color} size={24} />,
         }}
       />
 
@@ -85,7 +78,7 @@ const TabNavigator = ({ user, onLogout }) => {
           tabBarLabel: 'Planner',
           headerShown: false,
           tabBarIcon: ({ focused, color, size }) =>
-            focused ? <GradientIcon IconComponent={Calendar} size={24} color={color} /> : <Calendar color={color} size={24} />,
+            focused ? <GradientIcon IconComponent={Calendar} size={24} colors={colors} /> : <Calendar color={color} size={24} />,
         }}
       />
 
@@ -96,7 +89,7 @@ const TabNavigator = ({ user, onLogout }) => {
           tabBarLabel: 'Missed',
           headerShown: false,
           tabBarIcon: ({ focused, color, size }) =>
-            focused ? <GradientIcon IconComponent={XCircle} size={24} color={color} /> : <XCircle color={color} size={24} />,
+            focused ? <GradientIcon IconComponent={XCircle} size={24} colors={colors} /> : <XCircle color={color} size={24} />,
         }}
       />
 
@@ -107,7 +100,7 @@ const TabNavigator = ({ user, onLogout }) => {
           tabBarLabel: 'Profile',
           headerShown: false,
           tabBarIcon: ({ focused, color, size }) =>
-            focused ? <GradientIcon IconComponent={User} size={24} color={color} /> : <User color={color} size={24} />,
+            focused ? <GradientIcon IconComponent={User} size={24} colors={colors} /> : <User color={color} size={24} />,
         }}
       />
     </Tab.Navigator>

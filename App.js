@@ -4,14 +4,23 @@ import LoginScreen from './screens/LoginScreen';
 import SignUpScreen from './screens/SignUpScreen';
 import { initDB } from './services/Database';
 import { SQLiteProvider } from 'expo-sqlite';
-
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, DefaultTheme, DarkTheme } from '@react-navigation/native';
 import AppNavigator from './components/AppNavigator';
+import { ThemeProvider, useTheme } from './context/ThemeContext'; // Import ThemeProvider
+import { registerForPushNotificationsAsync } from './services/NotificationService'; // Import Notification Service
 
 const ScreenManager = () => {
   const [appState, setAppState] = useState('login');
   const [loggedInUser, setLoggedInUser] = useState(null);
-  const [theme, setTheme] = useState('dark'); // 'dark' or 'light'
+  const { theme } = useTheme(); // Access theme string ('light' or 'dark')
+
+  // Initialize Notifications on app start
+  useEffect(() => {
+    registerForPushNotificationsAsync();
+  }, []);
+
+  // Create Navigation Themes based on your context
+  const navigationTheme = theme === 'dark' ? DarkTheme : DefaultTheme;
 
   if (appState === 'login') {
     return (
@@ -39,15 +48,13 @@ const ScreenManager = () => {
 
   if (appState === 'main') {
     return (
-      <NavigationContainer>
+      <NavigationContainer theme={navigationTheme}>
         <AppNavigator
           user={loggedInUser}
           onLogout={() => {
             setLoggedInUser(null);
             setAppState('login');
           }}
-          theme={theme}
-          setTheme={setTheme}
         />
       </NavigationContainer>
     );
@@ -64,7 +71,10 @@ export default function App() {
       suspense
     >
       <Suspense fallback={<SplashScreen />}>
-        <ScreenManager />
+        {/* Wrap everything in ThemeProvider */}
+        <ThemeProvider>
+          <ScreenManager />
+        </ThemeProvider>
       </Suspense>
     </SQLiteProvider>
   );

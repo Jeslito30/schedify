@@ -6,19 +6,8 @@ import { useSQLiteContext } from 'expo-sqlite';
 import { getRepeatingTasksInDateRange, updateTaskStatus } from '../services/Database';
 import { useIsFocused } from '@react-navigation/native';
 import EditScreen from './EditScreen';
-// Importing Lucide icons for the header/tabs
-import { Plus, CalendarCheck, CheckCircle, ChevronLeft, ChevronRight } from 'lucide-react-native';
-
-// --- Constants ---
-const LightColors = {
-  background: '#F2F2F7',
-  card: '#FFFFFF',
-  textPrimary: '#1F1F1F',
-  textSecondary: '#6B7280',
-  accentOrange: '#FF9500',
-  progressRed: '#FF4500',
-  greenAccent: '#4CAF50',
-};
+import { Plus, CalendarCheck, ChevronLeft, ChevronRight } from 'lucide-react-native';
+import { useTheme } from '../context/ThemeContext';
 
 // --- Utility Function to get Current Day Name (e.g., MON, TUE) ---
 const getCurrentDayName = (date) => {
@@ -50,6 +39,7 @@ const convertTo24HourFormat = (time12h) => {
 };
 
 const PlannerScreen = ({ navigation, user }) => {
+    const { colors } = useTheme();
     const [activeView, setActiveView] = useState('Schedule');
     const [currentDate, setCurrentDate] = useState(new Date());
     const db = useSQLiteContext();
@@ -128,57 +118,58 @@ const PlannerScreen = ({ navigation, user }) => {
     // Helper component for the view selection tabs
     const ViewTab = ({ icon: Icon, text, viewName }) => (
         <TouchableOpacity
-            style={styles.viewTab}
+            style={[styles.viewTab, { borderBottomColor: colors.accentOrange }]}
             onPress={() => setActiveView(viewName)}
         >
-            {Icon && <Icon size={20} color={activeView === viewName ? LightColors.textPrimary : LightColors.textSecondary} />}
+            {Icon && <Icon size={20} color={activeView === viewName ? colors.textPrimary : colors.textSecondary} />}
             <Text
                 style={[
                     styles.viewTabText,
-                    activeView === viewName && styles.viewTabTextActive
+                    { color: colors.textSecondary },
+                    activeView === viewName && [styles.viewTabTextActive, { color: colors.textPrimary }]
                 ]}
             >
                 {text}
             </Text>
             {/* The orange underline effect */}
-            {activeView === viewName && <View style={styles.tabUnderline} />}
+            {activeView === viewName && <View style={[styles.tabUnderline, { backgroundColor: colors.accentOrange }]} />}
         </TouchableOpacity>
     );
 
     return (
-        <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
+        <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'left', 'right']}>
             {/* Header Section (Optimized for button visibility) */}
             <View style={styles.header}>
                 <TouchableOpacity onPress={goToPreviousDay}>
-                    <ChevronLeft size={28} color={LightColors.textPrimary} />
+                    <ChevronLeft size={28} color={colors.textPrimary} />
                 </TouchableOpacity>
-                <Text style={styles.titleText}>{currentDate.toDateString()}</Text>
+                <Text style={[styles.titleText, { color: colors.textPrimary }]}>{currentDate.toDateString()}</Text>
                 <TouchableOpacity onPress={goToNextDay}>
-                    <ChevronRight size={28} color={LightColors.textPrimary} />
+                    <ChevronRight size={28} color={colors.textPrimary} />
                 </TouchableOpacity>
             </View>
 
             {/* Schedule/Tasks Tabs */}
             <View style={styles.viewTabsContainer}>
                 <ViewTab icon={CalendarCheck} text="Schedule" viewName="Schedule" />
-                <ViewTab icon={CheckCircle} text="Tasks" viewName="Tasks" />
+                <ViewTab text="Tasks" viewName="Tasks" />
             </View>
 
             {/* Quick Stats/Indicators Card */}
-            <View style={styles.statsCard}>
+            <View style={[styles.statsCard, { backgroundColor: colors.card }]}>
                 <View style={styles.statItem}>
-                    <Text style={[styles.statValue, { color: LightColors.progressRed }]}>{tasks.length}</Text>
-                    <Text style={styles.statLabel}>Urgent Tasks</Text>
+                    <Text style={[styles.statValue, { color: colors.progressRed }]}>{tasks.length}</Text>
+                    <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Urgent Tasks</Text>
                 </View>
-                <View style={styles.verticalSeparator} />
+                <View style={[styles.verticalSeparator, { backgroundColor: colors.textSecondary }]} />
                 <View style={styles.statItem}>
-                    <Text style={[styles.statValue, { color: LightColors.accentOrange }]}>{schedules.length}</Text>
-                    <Text style={styles.statLabel}>Classes Today</Text>
+                    <Text style={[styles.statValue, { color: colors.accentOrange }]}>{schedules.length}</Text>
+                    <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Classes Today</Text>
                 </View>
-                <View style={styles.verticalSeparator} />
+                <View style={[styles.verticalSeparator, { backgroundColor: colors.textSecondary }]} />
                 {/* Dynamic Day Indicator */}
                 <View style={styles.statItem}>
-                    <Text style={styles.dayText}>{getCurrentDayName(currentDate)}</Text>
+                    <Text style={[styles.dayText, { color: colors.greenAccent }]}>{getCurrentDayName(currentDate)}</Text>
                 </View>
             </View>
 
@@ -198,7 +189,7 @@ const PlannerScreen = ({ navigation, user }) => {
                         })
                     ) : (
                         <View style={styles.emptyTasks}>
-                            <Text style={styles.emptyText}>No schedules to display.</Text>
+                            <Text style={[styles.emptyText, { color: colors.textPrimary }]}>No schedules to display.</Text>
                         </View>
                     )
                 ) : (
@@ -210,7 +201,7 @@ const PlannerScreen = ({ navigation, user }) => {
                         })
                     ) : (
                         <View style={styles.emptyTasks}>
-                            <Text style={styles.emptyText}>No tasks to display.</Text>
+                            <Text style={[styles.emptyText, { color: colors.textPrimary }]}>No tasks to display.</Text>
                         </View>
                     )
                 )}
@@ -218,8 +209,8 @@ const PlannerScreen = ({ navigation, user }) => {
             </ScrollView>
 
             {/* Floating Action Button (FAB) for adding tasks */}
-            <TouchableOpacity style={styles.floatingActionButton} onPress={handleAddPress}>
-                <Plus size={30} color={LightColors.card} />
+            <TouchableOpacity style={[styles.floatingActionButton, { backgroundColor: colors.accentOrange, shadowColor: colors.accentOrange }]} onPress={handleAddPress}>
+                <Plus size={30} color={colors.card} />
             </TouchableOpacity>
 
             <Modal
@@ -243,7 +234,6 @@ const PlannerScreen = ({ navigation, user }) => {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: LightColors.background,
         paddingHorizontal: 15,
     },
     scrollContent: {
@@ -259,14 +249,8 @@ const styles = StyleSheet.create({
         marginBottom: 10,
     },
     titleText: {
-        color: LightColors.textPrimary,
         fontSize: 25,
         fontWeight: 'bold',
-    },
-    subtitleText: {
-        color: LightColors.textSecondary,
-        fontSize: 14,
-        marginTop: 2,
     },
     // Polished Add Button Style
     floatingActionButton: {
@@ -276,10 +260,8 @@ const styles = StyleSheet.create({
       width: 60,
       height: 60,
       borderRadius: 30,
-      backgroundColor: LightColors.accentOrange,
       justifyContent: 'center',
       alignItems: 'center',
-      shadowColor: LightColors.accentOrange,
       shadowOffset: { width: 0, height: 4 },
       shadowOpacity: 0.3,
       shadowRadius: 4,
@@ -301,13 +283,11 @@ const styles = StyleSheet.create({
         position: 'relative',
     },
     viewTabText: {
-        color: LightColors.textSecondary,
         fontSize: 16,
         fontWeight: '500',
         marginLeft: 5,
     },
     viewTabTextActive: {
-        color: LightColors.textPrimary,
         fontWeight: 'bold',
     },
     tabUnderline: {
@@ -316,7 +296,6 @@ const styles = StyleSheet.create({
         left: 0,
         right: 0,
         height: 3,
-        backgroundColor: LightColors.accentOrange,
         borderRadius: 2,
     },
 
@@ -325,7 +304,6 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        backgroundColor: LightColors.card,
         borderRadius: 15,
         padding: 20,
         marginBottom: 20,
@@ -340,17 +318,14 @@ const styles = StyleSheet.create({
         marginBottom: 2,
     },
     statLabel: {
-        color: LightColors.textSecondary,
         fontSize: 14,
     },
     verticalSeparator: {
         width: 1,
         height: '70%',
-        backgroundColor: LightColors.textSecondary,
         opacity: 0.2,
     },
     dayText: {
-        color: LightColors.greenAccent,
         fontSize: 28,
         fontWeight: 'bold',
     },
@@ -362,15 +337,10 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
     },
     emptyText: {
-        color: LightColors.textPrimary,
         fontSize: 18,
         fontWeight: '600',
         marginBottom: 5,
     },
-    emptyTextSecondary: {
-        color: LightColors.textSecondary,
-        fontSize: 14,
-    }
 });
 
 export default PlannerScreen;
