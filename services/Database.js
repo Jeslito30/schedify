@@ -35,6 +35,10 @@ export const initDB = async (db) => {
     const hasRepeatDaysColumn = tableInfo.some(info => info.name === 'repeat_days');
     const hasStartDateColumn = tableInfo.some(info => info.name === 'start_date');
     const hasEndDateColumn = tableInfo.some(info => info.name === 'end_date');
+    // NEW MIGRATIONS
+    const hasNotificationId = tableInfo.some(info => info.name === 'notification_id');
+    const hasReminderMinutes = tableInfo.some(info => info.name === 'reminder_minutes');
+
 
 
     if (!hasLocationColumn) {
@@ -56,6 +60,14 @@ export const initDB = async (db) => {
     if (!hasEndDateColumn) {
       await db.execAsync("ALTER TABLE tasks ADD COLUMN end_date TEXT;");
       console.log("Added 'end_date' column to 'tasks' table.");
+    }
+    if (!hasNotificationId) {
+      await db.execAsync("ALTER TABLE tasks ADD COLUMN notification_id TEXT;");
+      console.log("Added 'notification_id' column to 'tasks' table.");
+    }
+    if (!hasReminderMinutes) {
+      await db.execAsync("ALTER TABLE tasks ADD COLUMN reminder_minutes INTEGER DEFAULT 5;");
+      console.log("Added 'reminder_minutes' column to 'tasks' table.");
     }
   } catch (error) {
     console.error("Failed to initialize database:", error);
@@ -95,11 +107,17 @@ export const getUser = async (db, email, password) => {
   };
 
 export const addTask = async (db, task) => {
+  // UPDATED: Accept notification_id and reminder_minutes
   try {
-    const { title, description, date, time, type, location, userId, repeat_frequency, repeat_days, start_date, end_date } = task;
+    const { 
+      title, description, date, time, type, location, userId, 
+      repeat_frequency, repeat_days, start_date, end_date, 
+      notification_id, reminder_minutes // <--- New fields
+    } = task;
+    
     await db.runAsync(
-      'INSERT INTO tasks (title, description, date, time, type, location, userId, repeat_frequency, repeat_days, start_date, end_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [title, description, date, time, type, location, userId, repeat_frequency, repeat_days, start_date, end_date]
+      'INSERT INTO tasks (title, description, date, time, type, location, userId, repeat_frequency, repeat_days, start_date, end_date, notification_id, reminder_minutes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [title, description, date, time, type, location, userId, repeat_frequency, repeat_days, start_date, end_date, notification_id, reminder_minutes]
     );
   } catch (error) {
     console.error("Database add task error:", error);
@@ -213,11 +231,17 @@ export const updateProfilePicture = async (db, userId, profilePicture) => {
 };
 
 export const updateTask = async (db, task) => {
+  // UPDATED: Update new columns
   try {
-    const { id, title, description, date, time, type, location, repeat_frequency, repeat_days, start_date, end_date } = task;
+    const { 
+      id, title, description, date, time, type, location, 
+      repeat_frequency, repeat_days, start_date, end_date,
+      notification_id, reminder_minutes // <--- New fields
+    } = task;
+    
     await db.runAsync(
-      'UPDATE tasks SET title = ?, description = ?, date = ?, time = ?, type = ?, location = ?, repeat_frequency = ?, repeat_days = ?, start_date = ?, end_date = ? WHERE id = ?',
-      [title, description, date, time, type, location, repeat_frequency, repeat_days, start_date, end_date, id]
+      'UPDATE tasks SET title = ?, description = ?, date = ?, time = ?, type = ?, location = ?, repeat_frequency = ?, repeat_days = ?, start_date = ?, end_date = ?, notification_id = ?, reminder_minutes = ? WHERE id = ?',
+      [title, description, date, time, type, location, repeat_frequency, repeat_days, start_date, end_date, notification_id, reminder_minutes, id]
     );
   } catch (error) {
     console.error("Database update task error:", error);

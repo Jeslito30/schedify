@@ -48,27 +48,33 @@ export const registerForPushNotificationsAsync = async () => {
   return true;
 };
 
-export const scheduleTaskNotification = async (title, date, time) => {
+// UPDATED: Accepts reminderMinutes to calculate the correct trigger time
+export const scheduleTaskNotification = async (title, date, time, reminderMinutes = 5) => {
   try {
-    // Parse the date and time strings into a Date object
-    // Assumes date is "YYYY-MM-DD" and time is "HH:MM AM/PM"
+    // Parse the date (YYYY-MM-DD)
     const [year, month, day] = date.split('-').map(Number);
     
+    // Parse the time (HH:MM AM/PM)
     const [timePart, modifier] = time.split(' ');
     let [hours, minutes] = timePart.split(':').map(Number);
     
     if (hours === 12) hours = 0;
     if (modifier === 'PM') hours += 12;
 
-    const triggerDate = new Date(year, month - 1, day, hours, minutes);
+    // Create date object for the task time
+    const taskDate = new Date(year, month - 1, day, hours, minutes);
+    
+    // Calculate the actual notification trigger time
+    // Subtract the reminder minutes from the task time
+    const triggerDate = new Date(taskDate.getTime() - (reminderMinutes * 60000));
 
-    // If the time is in the past, don't schedule
-    if (triggerDate < new Date()) return;
+    // If the trigger time is in the past, don't schedule
+    if (triggerDate < new Date()) return null;
 
     const id = await Notifications.scheduleNotificationAsync({
       content: {
         title: "Task Reminder",
-        body: `It's time for: ${title}`,
+        body: `Your task "${title}" starts in ${reminderMinutes} minutes!`,
         sound: 'default',
       },
       trigger: triggerDate,
@@ -78,5 +84,17 @@ export const scheduleTaskNotification = async (title, date, time) => {
     return id;
   } catch (error) {
     console.error("Error scheduling notification:", error);
+    return null;
+  }
+};
+
+// NEW: Helper to cancel a specific notification
+export const cancelTaskNotification = async (notificationId) => {
+  if (!notificationId) return;
+  try {
+    await Notifications.cancelScheduledNotificationAsync(notificationId);
+    console.log(`Notification ${notificationId} cancelled`);
+  } catch (error) {
+    console.error("Error cancelling notification:", error);
   }
 };

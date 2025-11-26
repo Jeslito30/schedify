@@ -3,8 +3,9 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert,
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useSQLiteContext } from 'expo-sqlite';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { addTask } from '../services/Database';
-import { ChevronLeft, Check, Calendar, Clock, Briefcase, BookOpen, Repeat, Users, CheckSquare, MapPin } from 'lucide-react-native'; 
+import { addTask } from '../services/Database';// ... imports
+import { scheduleTaskNotification } from '../services/NotificationService'; // Import service
+import { ChevronLeft, Check, Calendar, Clock, Briefcase, BookOpen, Repeat, Users, CheckSquare, MapPin, Bell } from 'lucide-react-native'; // Import Bell icon
 
 import { useTheme } from '../context/ThemeContext';
 
@@ -36,6 +37,9 @@ const AddScreen = ({ navigation, route, user: userProp }) => {
     const [description, setDescription] = useState(prefilledData?.description || ''); // <--- UPDATED
     const [repeatFrequency, setRepeatFrequency] = useState('none');
     const [repeatDays, setRepeatDays] = useState([]);
+
+    // New State for Reminder
+    const [reminderMinutes, setReminderMinutes] = useState(5); // Default 5 minutes
     
     // Helper to parse "YYYY-MM-DD" to Date object
     const parseDateString = (dateStr) => {
@@ -188,6 +192,18 @@ const AddScreen = ({ navigation, route, user: userProp }) => {
         }
 
         try {
+            // 1. Schedule Notification first
+            let notificationId = null;
+            if (activeType === 'Task') { // Only schedule for single tasks for now, complex logic needed for recurring
+                notificationId = await scheduleTaskNotification(
+                    taskTitle, 
+                    dueDate, 
+                    dueTime, 
+                    reminderMinutes
+                );
+            }
+
+            // 2. Save to DB with new fields
             await addTask(db, {
                 title: taskTitle,
                 description: description,
@@ -200,11 +216,13 @@ const AddScreen = ({ navigation, route, user: userProp }) => {
                 repeat_days: repeatFrequency === 'weekly' ? JSON.stringify(repeatDays) : null,
                 start_date: activeType === 'Schedule' ? startDateString : null,
                 end_date: activeType === 'Schedule' ? endDateString : null,
+                notification_id: notificationId, // Save ID
+                reminder_minutes: reminderMinutes // Save preference
             });
             Alert.alert('Success', `${activeType} added successfully!`);
             navigation.goBack();
         } catch (error) {
-            console.error('Failed to add task:', error);
+            console.error("Failed to add task:", error);
             Alert.alert('Error', `Failed to add ${activeType}. Please try again.`);
         }
     };
@@ -423,6 +441,29 @@ const AddScreen = ({ navigation, route, user: userProp }) => {
                         </TouchableOpacity>
                     </View>
                     
+                    {/* Reminder Section */}
+                    <Text style={[styles.label, { color: colors.textPrimary }]}>Remind Me Before</Text>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 20 }}>
+                        {[0, 5, 10, 15, 30, 60].map((min) => (
+                            <TouchableOpacity
+                                key={min}
+                                style={[
+                                    styles.reminderChip,
+                                    { borderColor: colors.border, backgroundColor: colors.card },
+                                    reminderMinutes === min && { backgroundColor: colors.purpleAccent, borderColor: colors.purpleAccent }
+                                ]}
+                                onPress={() => setReminderMinutes(min)}
+                            >
+                                <Text style={[
+                                    styles.reminderText, 
+                                    { color: colors.textPrimary },
+                                    reminderMinutes === min && { color: '#fff', fontWeight: 'bold' }
+                                ]}>
+                                    {min === 0 ? 'At time' : `${min} min`}
+                                </Text>
+                            </TouchableOpacity>
+                        ))}
+                    </ScrollView>
                     {/* Submit Button */}
                     <TouchableOpacity 
                         style={[styles.addButton, { backgroundColor: colors.purpleAccent, shadowColor: colors.purpleAccent }]}
@@ -654,6 +695,16 @@ const styles = StyleSheet.create({
         shadowOpacity: 0.5,
         shadowRadius: 8,
         elevation: 10,
+    },
+    reminderChip: {
+        paddingVertical: 8,
+        paddingHorizontal: 16,
+        borderRadius: 20,
+        borderWidth: 1,
+        marginRight: 10,
+    },
+    reminderText: {
+        fontSize: 14,
     },
     addButtonText: {
         fontSize: 18,

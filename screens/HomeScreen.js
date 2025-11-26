@@ -6,7 +6,7 @@ import { useSQLiteContext } from 'expo-sqlite';
 import { getAllTasks, getTasksByDate, getUpcomingTasks, getCompletedTasks, updateTaskStatus } from '../services/Database';
 import { useIsFocused } from '@react-navigation/native';
 import { getScheduleRecommendation } from '../services/AiServices';
-import { Bell, Sparkles, Mic, X, MessageSquare } from 'lucide-react-native';
+import { Bell, Sparkles, X, MessageSquare } from 'lucide-react-native';
 import { Ionicons } from '@expo/vector-icons';
 import EditScreen from './EditScreen';
 import { useTheme } from '../context/ThemeContext';
@@ -155,10 +155,6 @@ const HomeScreen = ({ user, navigation }) => {
     setAiModalVisible(true);
     setAiPrompt('');
     setAiResult(null);
-  };
-
-  const handleAiVoicePress = () => {
-    Alert.alert("Voice Input", "Voice input feature is coming soon!");
   };
 
   // --- INTEGRATED AI SUBMIT FUNCTION ---
@@ -368,9 +364,6 @@ const HomeScreen = ({ user, navigation }) => {
                         onChangeText={setAiPrompt}
                         multiline
                     />
-                    <TouchableOpacity style={styles.micButton} onPress={handleAiVoicePress}>
-                        <Mic size={20} color={colors.textSecondary} />
-                    </TouchableOpacity>
                 </View>
 
                 {isAiLoading ? (

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, TextInput, StyleSheet, TouchableOpacity, Alert, Platform, ScrollView } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Picker } from '@react-native-picker/picker'; // Correct import
+import { scheduleTaskNotification, cancelTaskNotification } from '../services/NotificationService';
 import { updateTask } from '../services/Database';
 import { useSQLiteContext } from 'expo-sqlite';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -25,6 +26,7 @@ const EditScreen = ({ task, onClose }) => {
     const [categories, setCategories] = useState([]);
     const [repeatFrequency, setRepeatFrequency] = useState(task.repeat_frequency || 'none');
     const [repeatDays, setRepeatDays] = useState(task.repeat_days ? JSON.parse(task.repeat_days) : []);
+    const [reminderMinutes, setReminderMinutes] = useState(task.reminder_minutes || 5);
 
     const screenTitle = task.type === 'Task' ? 'Edit Task' : 'Edit Schedule';
     const activeType = task.type === 'Task' ? 'Task' : 'Schedule';
@@ -97,6 +99,24 @@ const EditScreen = ({ task, onClose }) => {
             const formattedMinutes = minutes < 10 ? `0${minutes}` : minutes;
             return `${formattedHours}:${formattedMinutes} ${ampm}`;
         };
+        // 1. Handle Notification Logic
+        let newNotificationId = task.notification_id;
+        
+        // If specific fields changed, reschedule
+        // Ideally check if date/time/reminder changed, but rescheduling always is safer for consistency
+        if (activeType === 'Task') {
+            // Cancel old one
+            if (task.notification_id) {
+                await cancelTaskNotification(task.notification_id);
+            }
+            // Schedule new one
+            newNotificationId = await scheduleTaskNotification(
+                title, 
+                formatDate(date), // Ensure this helper is available
+                formatTime(time), // Ensure this helper is available
+                reminderMinutes
+            );
+        }
 
         const originalTaskId = typeof task.id === 'string' ? parseInt(task.id.split('-')[0], 10) : task.id;
 
@@ -112,6 +132,8 @@ const EditScreen = ({ task, onClose }) => {
             repeat_days: repeatFrequency === 'weekly' ? JSON.stringify(repeatDays) : null,
             start_date: activeType === 'Schedule' ? formatDate(startDate) : null,
             end_date: activeType === 'Schedule' ? formatDate(endDate) : null,
+            notification_id: newNotificationId,
+            reminder_minutes: reminderMinutes
         };
 
         try {
@@ -271,6 +293,29 @@ const EditScreen = ({ task, onClose }) => {
             {showStartDatePicker && <DateTimePicker testID="startDatePicker" value={startDate} mode="date" display="default" onChange={handleStartDateChange} />}
             {showEndDatePicker && <DateTimePicker testID="endDatePicker" value={endDate} mode="date" display="default" onChange={handleEndDateChange} />}
 
+            {/* Reminder Section */}
+            <View style={styles.inputContainer}>
+                <View style={styles.inputHeader}>
+                    <MaterialCommunityIcons name="bell-ring-outline" size={20} color="#6D6D72" />
+                    <Text style={styles.inputLabel}>Remind Me Before</Text>
+                </View>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                    {[0, 5, 10, 15, 30, 60].map((min) => (
+                        <TouchableOpacity
+                            key={min}
+                            style={[
+                                styles.reminderChip,
+                                reminderMinutes === min && styles.reminderChipSelected
+                            ]}
+                            onPress={() => setReminderMinutes(min)}
+                        >
+                            <Text style={[styles.reminderText, reminderMinutes === min && styles.reminderTextSelected]}>
+                                {min === 0 ? 'At time' : `${min} min`}
+                            </Text>
+                        </TouchableOpacity>
+                    ))}
+                </ScrollView>
+            </View>
 
             {/* Action Buttons */}
             <View style={styles.buttonContainer}>
@@ -446,6 +491,27 @@ const styles = StyleSheet.create({
         fontWeight: 'bold',
         fontSize: 14,
     },
+    reminderChip: {
+        paddingVertical: 8,
+        paddingHorizontal: 16,
+        borderRadius: 20,
+        borderWidth: 1,
+        borderColor: '#C7C7CC',
+        backgroundColor: '#FFFFFF',
+        marginRight: 10,
+    },
+    reminderChipSelected: {
+        backgroundColor: '#007AFF',
+        borderColor: '#007AFF',
+    },
+    reminderText: {
+        fontSize: 14,
+        color: '#000000',
+    },
+    reminderTextSelected: {
+        color: '#FFFFFF',
+        fontWeight: 'bold',
+    }
 });
 
 export default EditScreen;
