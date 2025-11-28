@@ -1,21 +1,88 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Switch, Image, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Switch, Image, Alert, Animated } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import { useSQLiteContext } from 'expo-sqlite';
 import { updateProfilePicture } from '../services/Database';
 import { User, Edit, ChevronDown, LogOut, Moon, Sun } from 'lucide-react-native';
-// 1. Import the hook
 import { useTheme } from '../context/ThemeContext';
+// 1. Import CustomAlert
+import CustomAlert from '../components/CustomAlert';
 
 const ProfileScreen = ({ user, onLogout }) => {
     const db = useSQLiteContext();
-    // 2. Consume colors and toggle function
-    const { theme, toggleTheme, colors } = useTheme();
+    const { theme, toggleTheme, colors, isNotificationsEnabled, toggleNotifications } = useTheme(); // Use global state
     
-    const [isAlarmEnabled, setIsAlarmEnabled] = useState(true);
-    const toggleAlarmSwitch = () => setIsAlarmEnabled(previousState => !previousState);
     const [profilePicture, setProfilePicture] = useState(user?.profile_picture);
+    
+    // --- Custom Alert State (For Logout) ---
+    const [alertConfig, setAlertConfig] = useState({
+        visible: false,
+        title: '',
+        message: '',
+        type: 'info',
+        buttons: []
+    });
+
+    const showAlert = (title, message, type = 'info', buttons = []) => {
+        setAlertConfig({ visible: true, title, message, type, buttons });
+    };
+
+    const closeAlert = () => {
+        setAlertConfig(prev => ({ ...prev, visible: false }));
+    };
+
+    // --- Toast Notification State (For Switches) ---
+    const [toastMessage, setToastMessage] = useState(null);
+    const [fadeAnim] = useState(new Animated.Value(0)); // For fade animation
+
+    const showToast = (message) => {
+        setToastMessage(message);
+        // Fade In
+        Animated.timing(fadeAnim, {
+            toValue: 1,
+            duration: 300,
+            useNativeDriver: true,
+        }).start();
+
+        // Wait and Fade Out
+        setTimeout(() => {
+            Animated.timing(fadeAnim, {
+                toValue: 0,
+                duration: 300,
+                useNativeDriver: true,
+            }).start(() => setToastMessage(null));
+        }, 2000);
+    };
+
+    const handleThemeSwitch = () => {
+        toggleTheme();
+        const newMode = theme === 'light' ? 'Dark Mode' : 'Light Mode';
+        showToast(`${newMode} Enabled`);
+    };
+
+    const handleNotificationSwitch = (value) => {
+        toggleNotifications(); // Use global toggle
+        showToast(`Notifications turned ${value ? 'On' : 'Off'}`);
+    };
+
+    const handleLogoutPress = () => {
+        showAlert(
+            'Logout',
+            'Are you sure you want to log out?',
+            'info', // Using info icon, or could use 'error' for red alert
+            [
+                { text: 'Cancel', style: 'cancel', onPress: closeAlert },
+                { 
+                    text: 'Logout', 
+                    onPress: () => {
+                        closeAlert();
+                        onLogout();
+                    } 
+                }
+            ]
+        );
+    };
     
     const pickImage = async () => {
         let result = await ImagePicker.launchImageLibraryAsync({
@@ -32,13 +99,13 @@ const ProfileScreen = ({ user, onLogout }) => {
                 await updateProfilePicture(db, user.id, newUri);
             } catch (error) {
                 console.error("Failed to update profile picture in DB:", error);
-                Alert.alert("Error", "Could not save profile picture.");
+                // Use Custom Alert for error
+                showAlert('Error', 'Could not save profile picture.', 'error');
             }
         }
     };
 
     return (
-        // 3. Replace static styles with dynamic 'colors' object
         <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'left', 'right']}>
             <View style={styles.header}>
                 <Text style={[styles.titleText, { color: colors.textPrimary }]}>Profile</Text>
@@ -68,7 +135,7 @@ const ProfileScreen = ({ user, onLogout }) => {
                     <Switch
                         trackColor={{ false: colors.textSecondary, true: colors.accentOrange }}
                         thumbColor={colors.card}
-                        onValueChange={toggleTheme}
+                        onValueChange={handleThemeSwitch}
                         value={theme === 'dark'}
                     />
                 </View>
@@ -82,24 +149,43 @@ const ProfileScreen = ({ user, onLogout }) => {
                         <Switch
                             trackColor={{ false: colors.textSecondary, true: colors.accentOrange }}
                             thumbColor={colors.card}
-                            onValueChange={toggleAlarmSwitch}
-                            value={isAlarmEnabled}
+                            onValueChange={handleNotificationSwitch}
+                            value={isNotificationsEnabled} // Use global state
                         />
                     </View>
                 </View>
             </View>
 
+            {/* --- Inline Toast Message --- */}
+            {toastMessage && (
+                <Animated.View style={[
+                    styles.toastContainer, 
+                    { opacity: fadeAnim, backgroundColor: colors.card, borderColor: colors.accentOrange }
+                ]}>
+                    <Text style={[styles.toastText, { color: colors.accentOrange }]}>{toastMessage}</Text>
+                </Animated.View>
+            )}
+
             <View style={styles.logoutWrapper}>
-                <TouchableOpacity style={[styles.logoutButton, { backgroundColor: colors.progressRed }]} onPress={onLogout}>
+                <TouchableOpacity style={[styles.logoutButton, { backgroundColor: colors.progressRed }]} onPress={handleLogoutPress}>
                     <LogOut size={20} color={'white'} style={{ marginRight: 8 }} />
                     <Text style={styles.logoutButtonText}>Logout</Text>
                 </TouchableOpacity>
             </View>
+
+            {/* Custom Alert Component */}
+            <CustomAlert 
+                visible={alertConfig.visible}
+                title={alertConfig.title}
+                message={alertConfig.message}
+                type={alertConfig.type}
+                buttons={alertConfig.buttons}
+                onClose={closeAlert}
+            />
         </SafeAreaView>
     );
 };
 
-// Update styles to remove hardcoded colors where dynamic ones are used inline
 const styles = StyleSheet.create({
     container: { flex: 1, paddingHorizontal: 15 },
     header: { flexDirection: 'row', justifyContent: 'center', paddingTop: 10, marginBottom: 20 },
@@ -110,6 +196,12 @@ const styles = StyleSheet.create({
         alignItems: 'center', 
         marginBottom: 30, 
         position: 'relative',
+        // Shadow props for iOS
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.1,
+        shadowRadius: 10,
+        // Elevation for Android
+        elevation: 5,
     },
     avatarContainer: { width: 80, height: 80, borderRadius: 40, justifyContent: 'center', alignItems: 'center', marginBottom: 10 },
     avatar: { width: 80, height: 80, borderRadius: 40 },
@@ -120,6 +212,21 @@ const styles = StyleSheet.create({
     settingInputContainer: { borderRadius: 8, padding: 15, marginBottom: 15, borderWidth: 1 },
     logoutButton: { borderRadius: 10, padding: 15, alignItems: 'center', flexDirection: 'row', justifyContent: 'center' },
     logoutButtonText: { color: 'white', fontSize: 18, fontWeight: 'bold' },
+    // Toast Styles
+    toastContainer: {
+        marginBottom: 15,
+        paddingVertical: 10,
+        paddingHorizontal: 20,
+        borderRadius: 20,
+        alignItems: 'center',
+        justifyContent: 'center',
+        alignSelf: 'center',
+        borderWidth: 1,
+    },
+    toastText: {
+        fontSize: 14,
+        fontWeight: '600',
+    }
 });
 
 export default ProfileScreen;

@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { TaskCard } from '../components/TaskCard';
 import { useSQLiteContext } from 'expo-sqlite';
 import { getMissedTasks, updateTaskStatus } from '../services/Database';
 import { useIsFocused } from '@react-navigation/native';
+import EditScreen from './EditScreen';
 import { useTheme } from '../context/ThemeContext';
 
 // --- Utility Function to convert 12-hour time to 24-hour time ---
@@ -38,6 +39,9 @@ const MissedScreen = ({ user }) => {
     const [missedTasks, setMissedTasks] = useState([]);
     const isFocused = useIsFocused();
     const [activeFilter, setActiveFilter] = useState('Today');
+    // State for Edit Modal
+    const [isEditModalVisible, setIsEditModalVisible] = useState(false);
+    const [selectedTask, setSelectedTask] = useState(null);
 
     const fetchMissed = useCallback(async () => {
         if (user?.id) {
@@ -78,6 +82,18 @@ const MissedScreen = ({ user }) => {
         }
     };
 
+    const handleEdit = (task) => {
+        setSelectedTask(task);
+        setIsEditModalVisible(true);
+    };
+
+    const handleCloseEditModal = () => {
+        setIsEditModalVisible(false);
+        setSelectedTask(null);
+        fetchMissed(); // Refresh list after editing
+    };
+
+
     return (
         <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
             <View style={[styles.header, { backgroundColor: colors.background }]}>
@@ -104,7 +120,7 @@ const MissedScreen = ({ user }) => {
                 renderItem={({ item }) => {
                     const time24 = convertTo24HourFormat(item.time);
                     const deadline = `${item.date}T${time24}:00`;
-                    return <TaskCard {...item} deadline={deadline} onDone={handleDone} />;
+                    return <TaskCard {...item} deadline={deadline} onDone={handleDone} onEdit={handleEdit} />;
                 }}
                 keyExtractor={item => item.id.toString()}
                 contentContainerStyle={styles.taskList}
@@ -115,6 +131,19 @@ const MissedScreen = ({ user }) => {
                     </View>
                 )}
             />
+
+            <Modal
+                visible={isEditModalVisible}
+                animationType="slide"
+                onRequestClose={handleCloseEditModal}
+            >
+                {selectedTask && (
+                <EditScreen
+                    task={selectedTask}
+                    onClose={handleCloseEditModal}
+                />
+                )}
+            </Modal>
         </SafeAreaView>
     );
 };

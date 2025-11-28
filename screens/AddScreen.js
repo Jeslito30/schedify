@@ -1,24 +1,25 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert, Platform, KeyboardAvoidingView } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform, KeyboardAvoidingView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useSQLiteContext } from 'expo-sqlite';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { addTask } from '../services/Database';// ... imports
-import { scheduleTaskNotification } from '../services/NotificationService'; // Import service
-import { ChevronLeft, Check, Calendar, Clock, Briefcase, BookOpen, Repeat, Users, CheckSquare, MapPin, Bell } from 'lucide-react-native'; // Import Bell icon
-
+import { addTask } from '../services/Database';
+import { scheduleTaskNotification } from '../services/NotificationService';
+import { ChevronLeft, Check, Calendar, Clock, Briefcase, BookOpen, Repeat, Users, CheckSquare, MapPin, Bell } from 'lucide-react-native';
 import { useTheme } from '../context/ThemeContext';
+// 1. Import CustomAlert
+import CustomAlert from '../components/CustomAlert';
 
-// Category definitions based on type
+// Category definitions (kept same as before)
 const scheduleCategories = [
-    { name: 'Class', icon: BookOpen, color: '#FF9500' }, // accentOrange
-    { name: 'Routine', icon: Repeat, color: '#00BFFF' }, // blueAccent
-    { name: 'Meeting', icon: Users, color: '#4CAF50' }, // greenAccent
-    { name: 'Work', icon: Briefcase, color: '#5F50A9' }, // purpleAccent
+    { name: 'Class', icon: BookOpen, color: '#FF9500' }, 
+    { name: 'Routine', icon: Repeat, color: '#00BFFF' }, 
+    { name: 'Meeting', icon: Users, color: '#4CAF50' }, 
+    { name: 'Work', icon: Briefcase, color: '#5F50A9' }, 
 ];
 
 const taskCategories = [
-    { name: 'Task', icon: CheckSquare, color: '#FFC72C' }, // yellowAccent
+    { name: 'Task', icon: CheckSquare, color: '#FFC72C' }, 
 ];
 
 const weekDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -27,28 +28,40 @@ const AddScreen = ({ navigation, route, user: userProp }) => {
     const { colors } = useTheme();
     const db = useSQLiteContext();
     const user = route.params?.user || userProp;
-    const prefilledData = route.params?.prefilledData; // <--- NEW: Get prefilled data
+    const prefilledData = route.params?.prefilledData;
 
-    // State to toggle between Task and Schedule
-    const [activeType, setActiveType] = useState('Task'); 
+    // --- Custom Alert State ---
+    const [alertConfig, setAlertConfig] = useState({
+        visible: false,
+        title: '',
+        message: '',
+        type: 'info',
+        buttons: []
+    });
+
+    const showAlert = (title, message, type = 'info', buttons = []) => {
+        setAlertConfig({ visible: true, title, message, type, buttons });
+    };
+
+    const closeAlert = () => {
+        setAlertConfig(prev => ({ ...prev, visible: false }));
+    };
+
     // State for form fields
-    const [taskTitle, setTaskTitle] = useState(prefilledData?.title || ''); // <--- UPDATED
+    const [activeType, setActiveType] = useState('Task'); 
+    const [taskTitle, setTaskTitle] = useState(prefilledData?.title || '');
     const [selectedCategory, setSelectedCategory] = useState(taskCategories[0].name);
-    const [description, setDescription] = useState(prefilledData?.description || ''); // <--- UPDATED
+    const [description, setDescription] = useState(prefilledData?.description || '');
     const [repeatFrequency, setRepeatFrequency] = useState('none');
     const [repeatDays, setRepeatDays] = useState([]);
-
-    // New State for Reminder
-    const [reminderMinutes, setReminderMinutes] = useState(5); // Default 5 minutes
+    const [reminderMinutes, setReminderMinutes] = useState(5);
     
-    // Helper to parse "YYYY-MM-DD" to Date object
     const parseDateString = (dateStr) => {
         if (!dateStr) return new Date();
         const [y, m, d] = dateStr.split('-').map(Number);
         return new Date(y, m - 1, d);
     };
 
-    // Helper to parse "HH:MM AM/PM" to Date object
     const parseTimeString = (timeStr) => {
         if (!timeStr) return new Date();
         const d = new Date();
@@ -60,8 +73,6 @@ const AddScreen = ({ navigation, route, user: userProp }) => {
         return d;
     };
 
-    // Date and Time states
-    // <--- UPDATED INITIALIZATION
     const [date, setDate] = useState(prefilledData?.date ? parseDateString(prefilledData.date) : new Date()); 
     const [startDate, setStartDate] = useState(new Date());
     const [endDate, setEndDate] = useState(new Date());
@@ -72,8 +83,6 @@ const AddScreen = ({ navigation, route, user: userProp }) => {
     const [showStartDatePicker, setShowStartDatePicker] = useState(false);
     const [showEndDatePicker, setShowEndDatePicker] = useState(false);
 
-    // ... (rest of the existing functions: handleTypeChange, formatTime, formatDate, etc.)
-    // We need to redefine formatTime and formatDate here or copy them because they are used in state initialization
     const formatTime = (date) => {
         const hours = date.getHours();
         const minutes = date.getMinutes();
@@ -90,7 +99,6 @@ const AddScreen = ({ navigation, route, user: userProp }) => {
         return `${year}-${month}-${day}`;
     };
 
-    // <--- UPDATED INITIALIZATION
     const [dueDate, setDueDate] = useState(prefilledData?.date || formatDate(new Date()));
     const [startDateString, setStartDateString] = useState(formatDate(new Date()));
     const [endDateString, setEndDateString] = useState(formatDate(new Date()));
@@ -99,16 +107,14 @@ const AddScreen = ({ navigation, route, user: userProp }) => {
 
     const handleTypeChange = (type) => {
         setActiveType(type);
-        // Reset selected category to the first one of the new type
         if (type === 'Task') {
             setSelectedCategory(taskCategories[0].name);
         } else {
             setSelectedCategory(scheduleCategories[0].name);
         }
-        setRepeatDays([]); // Reset repeat days on type change
+        setRepeatDays([]); 
     };
 
-    // Helper component for category buttons
     const CategoryButton = ({ item }) => {
         const isActive = selectedCategory === item.name;
         return (
@@ -158,8 +164,7 @@ const AddScreen = ({ navigation, route, user: userProp }) => {
     };
 
     const handleOpenMap = () => {
-        // This is a placeholder. You can replace this with navigation to a map screen or opening a modal.
-        Alert.alert("Open Map", "This will open a map to select a location.");
+        showAlert("Open Map", "This will open a map to select a location.", "info");
     };
 
     const handleRepeatDayToggle = (day) => {
@@ -174,27 +179,25 @@ const AddScreen = ({ navigation, route, user: userProp }) => {
 
     const handleEverydayToggle = () => {
         if (repeatDays.length === weekDays.length) {
-            setRepeatDays([]); // Deselect all
+            setRepeatDays([]); 
         } else {
-            setRepeatDays(weekDays); // Select all
+            setRepeatDays(weekDays);
         }
     };
 
-    // Placeholder for adding task/schedule
     const handleAdd = async () => {
         if (!taskTitle.trim()) {
-            Alert.alert('Validation Error', 'Task title is required.');
+            showAlert('Validation Error', 'Task title is required.', 'error');
             return;
         }
         if (!user?.id) {
-            Alert.alert('Error', 'User not found. Please log in again.');
+            showAlert('Error', 'User not found. Please log in again.', 'error');
             return;
         }
 
         try {
-            // 1. Schedule Notification first
             let notificationId = null;
-            if (activeType === 'Task') { // Only schedule for single tasks for now, complex logic needed for recurring
+            if (activeType === 'Task') { 
                 notificationId = await scheduleTaskNotification(
                     taskTitle, 
                     dueDate, 
@@ -203,7 +206,6 @@ const AddScreen = ({ navigation, route, user: userProp }) => {
                 );
             }
 
-            // 2. Save to DB with new fields
             await addTask(db, {
                 title: taskTitle,
                 description: description,
@@ -216,20 +218,27 @@ const AddScreen = ({ navigation, route, user: userProp }) => {
                 repeat_days: repeatFrequency === 'weekly' ? JSON.stringify(repeatDays) : null,
                 start_date: activeType === 'Schedule' ? startDateString : null,
                 end_date: activeType === 'Schedule' ? endDateString : null,
-                notification_id: notificationId, // Save ID
-                reminder_minutes: reminderMinutes // Save preference
+                notification_id: notificationId,
+                reminder_minutes: reminderMinutes 
             });
-            Alert.alert('Success', `${activeType} added successfully!`);
-            navigation.goBack();
+            
+            // Replaced Alert with CustomAlert success
+            showAlert('Success', `${activeType} added successfully!`, 'success', [{
+                text: 'OK',
+                onPress: () => {
+                    closeAlert();
+                    navigation.goBack();
+                }
+            }]);
+
         } catch (error) {
             console.error("Failed to add task:", error);
-            Alert.alert('Error', `Failed to add ${activeType}. Please try again.`);
+            showAlert('Error', `Failed to add ${activeType}. Please try again.`, 'error');
         }
     };
 
     return (
         <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
-            {/* Header Section - This part stays fixed */}
             <View style={styles.header}>
                 <TouchableOpacity onPress={() => navigation?.goBack()}>
                     <ChevronLeft size={28} color={colors.textPrimary} />
@@ -237,12 +246,10 @@ const AddScreen = ({ navigation, route, user: userProp }) => {
                 <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>Add</Text>
             </View>
 
-            {/* Subtitle/Instruction - This part also stays fixed */}
             <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
                 Add your schedule or task to stay organized and on track.
             </Text>
 
-            {/* Task/Schedule Segmented Control - Now part of the fixed header area */}
             <View style={[styles.segmentedControl, { backgroundColor: colors.card }]}>
                 <TouchableOpacity 
                     style={[styles.segment, activeType === 'Task' && [styles.segmentActive, { backgroundColor: colors.purpleAccent + '20' }]]}
@@ -264,13 +271,10 @@ const AddScreen = ({ navigation, route, user: userProp }) => {
             <KeyboardAvoidingView 
                 style={{ flex: 1 }} 
                 behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-                keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20} // Adjust as needed
+                keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
             >
-                {/* The rest of the content is scrollable */}
                 <ScrollView showsVerticalScrollIndicator={false}>
-                    {/* Form Fields */}
-
-                    {/* Task Title */} 
+                    
                     <Text style={[styles.label, { color: colors.textPrimary }]}>{activeType === 'Schedule' ? 'Schedule Title' : 'Task title'}</Text>
                     <TextInput
                         style={[styles.textInput, { backgroundColor: colors.inputBackground, color: colors.textPrimary, borderColor: colors.border }]}
@@ -280,7 +284,6 @@ const AddScreen = ({ navigation, route, user: userProp }) => {
                         onChangeText={setTaskTitle}
                     />
 
-                    {/* Category Selection */} 
                     <Text style={[styles.label, { color: colors.textPrimary }]}>Category</Text>
                     <View style={[styles.categoryContainer, { backgroundColor: colors.background }]}>
                         {(activeType === 'Task' ? taskCategories : scheduleCategories).map(item => (
@@ -288,7 +291,6 @@ const AddScreen = ({ navigation, route, user: userProp }) => {
                         ))}
                     </View>
                     
-                    {/* Description */} 
                     <Text style={[styles.label, { color: colors.textPrimary }]}>Description</Text>
                     <TextInput
                         style={[styles.textArea, { backgroundColor: colors.inputBackground, color: colors.textPrimary, borderColor: colors.border }]}
@@ -300,7 +302,6 @@ const AddScreen = ({ navigation, route, user: userProp }) => {
                         textAlignVertical="top"
                     />
 
-                    {/* Repeat Section - Only for Schedules */}
                     {activeType === 'Schedule' && (
                         <View> 
                             <Text style={[styles.label, { color: colors.textPrimary }]}>Repeat</Text>
@@ -339,7 +340,6 @@ const AddScreen = ({ navigation, route, user: userProp }) => {
                         </View>
                     )}
 
-                    {/* Time and Date Section */}
                     <View style={styles.dateTimeContainer}>
                         <View style={styles.dateTimeInputGroup}> 
                             <Text style={[styles.label, { color: colors.textPrimary }]}>{activeType === 'Schedule' ? 'Time' : 'Due Time'}</Text>
@@ -425,8 +425,6 @@ const AddScreen = ({ navigation, route, user: userProp }) => {
                         />
                     )}
 
-
-                    {/* Location */} 
                     <Text style={[styles.label, { color: colors.textPrimary }]}>Location</Text>
                     <View style={styles.locationInputContainer}>
                         <TextInput
@@ -441,7 +439,6 @@ const AddScreen = ({ navigation, route, user: userProp }) => {
                         </TouchableOpacity>
                     </View>
                     
-                    {/* Reminder Section */}
                     <Text style={[styles.label, { color: colors.textPrimary }]}>Remind Me Before</Text>
                     <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 20 }}>
                         {[0, 5, 10, 15, 30, 60].map((min) => (
@@ -464,7 +461,7 @@ const AddScreen = ({ navigation, route, user: userProp }) => {
                             </TouchableOpacity>
                         ))}
                     </ScrollView>
-                    {/* Submit Button */}
+                    
                     <TouchableOpacity 
                         style={[styles.addButton, { backgroundColor: colors.purpleAccent, shadowColor: colors.purpleAccent }]}
                         onPress={handleAdd}
@@ -474,18 +471,25 @@ const AddScreen = ({ navigation, route, user: userProp }) => {
 
                 </ScrollView>
             </KeyboardAvoidingView>
+
+            {/* Custom Alert Component */}
+            <CustomAlert 
+                visible={alertConfig.visible}
+                title={alertConfig.title}
+                message={alertConfig.message}
+                type={alertConfig.type}
+                buttons={alertConfig.buttons}
+                onClose={closeAlert}
+            />
         </SafeAreaView>
     );
 };
 
-// --- Styles ---
 const styles = StyleSheet.create({
     container: {
         flex: 1,
         paddingHorizontal: 20,
     },
-    
-    // --- Header ---
     header: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -502,8 +506,6 @@ const styles = StyleSheet.create({
         marginBottom: 20,
         lineHeight: 20,
     },
-
-    // --- Segmented Control (Task/Schedule) ---
     segmentedControl: {
         flexDirection: 'row',
         borderRadius: 10,
@@ -529,8 +531,6 @@ const styles = StyleSheet.create({
     segmentTextActive: {
         fontWeight: 'bold',
     },
-
-    // --- Form Elements ---
     label: {
         fontSize: 16,
         fontWeight: '600',
@@ -550,11 +550,9 @@ const styles = StyleSheet.create({
         paddingHorizontal: 15,
         paddingVertical: 15,
         fontSize: 16,
-        height: 100, // Fixed height for description
+        height: 100, 
         marginBottom: 20,
     },
-
-    // --- Category Chips ---
     categoryContainer: {
         flexDirection: 'row',
         flexWrap: 'wrap',
@@ -574,8 +572,6 @@ const styles = StyleSheet.create({
         fontWeight: '600',
         marginTop: 5,
     },
-
-    // --- Repeat Section ---
     repeatFrequencyContainer: {
         flexDirection: 'row',
         justifyContent: 'space-between',
@@ -588,10 +584,10 @@ const styles = StyleSheet.create({
         paddingVertical: 10,
         borderRadius: 8,
     },
-    frequencyButtonSelected: {
-    },
     frequencyButtonText: {
         fontWeight: 'bold',
+    },
+    frequencyButtonSelected: {
     },
     frequencyButtonTextSelected: {
     },
@@ -630,12 +626,10 @@ const styles = StyleSheet.create({
         fontWeight: 'bold',
         fontSize: 14,
     },
-
-    // --- Date/Time Inputs ---
     dateTimeContainer: {
         flexDirection: 'row',
         justifyContent: 'space-between',
-        flexWrap: 'wrap', // Allows items to wrap to the next line
+        flexWrap: 'wrap', 
         marginBottom: 20,
     },
     scheduleDateContainer: {
@@ -645,7 +639,7 @@ const styles = StyleSheet.create({
     },
     dateTimeInputGroup: {
         width: '48%',
-        marginBottom: 15, // Add margin for when items wrap
+        marginBottom: 15, 
     },
     iconInInput: {
         position: 'absolute',
@@ -653,21 +647,17 @@ const styles = StyleSheet.create({
         zIndex: 1,
     },
     dateTimeText: {
-        // Inherits from textInput, but we adjust padding and remove margin
         paddingLeft: 45,
         marginBottom: 0,
-        paddingVertical: 0, // Remove vertical padding to rely on height
-        height: 50, // Fixed height
+        paddingVertical: 0, 
+        height: 50, 
         textAlignVertical: 'center',
     },
     dateTimeWrapper: {
         flexDirection: 'row',
         alignItems: 'center',
         position: 'relative',
-        // The textInput style is now applied to the Text component inside
     },
-
-    // --- Location Input ---
     locationInputContainer: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -676,16 +666,14 @@ const styles = StyleSheet.create({
     },
     locationInput: {
         flex: 1,
-        paddingRight: 50, // Make space for the icon
-        marginBottom: 0, // Override default margin from textInput
+        paddingRight: 50, 
+        marginBottom: 0, 
     },
     mapIcon: {
         position: 'absolute',
         right: 0,
-        padding: 15, // Makes the touch target larger
+        padding: 15, 
     },
-
-    // --- Submit Button ---
     addButton: {
         borderRadius: 10,
         padding: 18,

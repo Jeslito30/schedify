@@ -1,18 +1,17 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Image, Modal, TextInput, ActivityIndicator, KeyboardAvoidingView, Platform, Alert } from 'react-native';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Image, Modal, TextInput, ActivityIndicator, KeyboardAvoidingView, Platform, Alert, Animated } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { TaskCard } from '../components/TaskCard';
 import { useSQLiteContext } from 'expo-sqlite';
-import { getAllTasks, getTasksByDate, getUpcomingTasks, getCompletedTasks, updateTaskStatus } from '../services/Database';
+import { getAllTasks, getUpcomingTasks, updateTaskStatus } from '../services/Database'; // Adjusted imports based on usage
 import { useIsFocused } from '@react-navigation/native';
 import { getScheduleRecommendation } from '../services/AiServices';
-import { Bell, Sparkles, X, MessageSquare } from 'lucide-react-native';
+import { Bell, BellOff, Sparkles, X } from 'lucide-react-native'; // Added BellOff
 import { Ionicons } from '@expo/vector-icons';
 import EditScreen from './EditScreen';
 import { useTheme } from '../context/ThemeContext';
 
-
-// --- Utility Function to get Current Date in YYYY-MM-DD format ---
+// ... (Keep Utility Functions: getCurrentDate, getFormattedDate, etc. unchanged)
 const getCurrentDate = () => {
   const date = new Date();
   const year = date.getFullYear();
@@ -22,46 +21,36 @@ const getCurrentDate = () => {
   return `${year}-${pad(month)}-${pad(day)}`;
 };
 
-// --- Utility Function to get formatted date (e.g., October 26, 2023) ---
 const getFormattedDate = () => {
   const date = new Date();
   const options = { year: 'numeric', month: 'long', day: 'numeric' };
   return date.toLocaleDateString('en-US', options);
 };
 
-// --- Utility Function to get Current Day Name (e.g., Wednesday) ---
 const getDayName = () => {
   const date = new Date();
   const options = { weekday: 'long' };
   return date.toLocaleDateString('en-US', options);
 };
 
-// --- Utility Function to convert 12-hour time to 24-hour time ---
 const convertTo24HourFormat = (time12h) => {
   const [time, modifier] = time12h.split(' ');
   let [hours, minutes] = time.split(':');
-
-  if (hours === '12') {
-    hours = '00';
-  }
-
-  if (modifier === 'PM') {
-    hours = parseInt(hours, 10) + 12;
-  }
+  if (hours === '12') hours = '00';
+  if (modifier === 'PM') hours = parseInt(hours, 10) + 12;
   return `${hours}:${minutes}`;
 };
 
 const HomeScreen = ({ user, navigation }) => {
-  const { colors } = useTheme();
+  const { colors, isNotificationsEnabled, toggleNotifications } = useTheme(); // Consuming global state
   const userName = user.name;
   const initial = userName.split(' ').map(n => n[0]).join('');
   const db = useSQLiteContext();
   const isFocused = useIsFocused();
   const profilePicture = user?.profile_picture;
 
-
   const [activeTab, setActiveTab] = useState('Upcoming');
-  const [activeFilter, setActiveFilter] = useState('All'); // 'All', 'Task', 'Schedule'
+  const [activeFilter, setActiveFilter] = useState('All');
   const [tasks, setTasks] = useState([]);
   const [isFilterVisible, setIsFilterVisible] = useState(false);
   const [allTasks, setAllTasks] = useState([]);
@@ -74,13 +63,34 @@ const HomeScreen = ({ user, navigation }) => {
   const [aiResult, setAiResult] = useState(null);
   const [isAiLoading, setIsAiLoading] = useState(false);
 
+  // --- Toast Notification State ---
+  const [toastMessage, setToastMessage] = useState(null);
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+
+  const showToast = (message) => {
+      setToastMessage(message);
+      // Fade In
+      Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+      }).start();
+
+      // Wait and Fade Out
+      setTimeout(() => {
+          Animated.timing(fadeAnim, {
+              toValue: 0,
+              duration: 300,
+              useNativeDriver: true,
+          }).start(() => setToastMessage(null));
+      }, 2000);
+  };
+
   const fetchTasks = useCallback(async () => {
     if (user?.id) {
       try {
         const today = getCurrentDate();
         let fetchedTasks;
-        
-        // Base query parts
         let typeFilterClause = "";
         if (activeFilter === 'Task') {
           typeFilterClause = " AND type = 'Task'";
@@ -147,8 +157,10 @@ const HomeScreen = ({ user, navigation }) => {
   const formattedDate = getFormattedDate();
 
   const handleNotificationPress = () => {
-    console.log('Notification button pressed!');
-  }
+    toggleNotifications();
+    const newState = !isNotificationsEnabled ? 'On' : 'Off';
+    showToast(`Notifications turned ${newState}`);
+  };
 
   // --- AI Logic ---
   const handleAiButtonPress = () => {
@@ -157,25 +169,15 @@ const HomeScreen = ({ user, navigation }) => {
     setAiResult(null);
   };
 
-  // --- INTEGRATED AI SUBMIT FUNCTION ---
   const handleAiSubmit = async () => {
     if (!aiPrompt.trim()) return;
-    
     setIsAiLoading(true);
-    
     try {
-      // 1. Fetch upcoming tasks to provide context
       const today = new Date().toISOString().split('T')[0]; 
       const allUpcomingTasks = await getUpcomingTasks(db, user.id, today);
-      
-      // 2. OPTIMIZATION: Limit to next 50 tasks
       const contextTasks = allUpcomingTasks.slice(0, 50);
-      
-      // 3. Call the new AI Service
       const recommendation = await getScheduleRecommendation(contextTasks, aiPrompt);
-
       setAiResult(recommendation);
-      
     } catch (error) {
       console.error("AI generation failed:", error);
       Alert.alert("AI Error", "Could not generate a schedule. Please check your connection.");
@@ -222,12 +224,25 @@ const HomeScreen = ({ user, navigation }) => {
           </View>
           
           <View style={styles.actionButtons}>
-              <TouchableOpacity style={[styles.headerButton, { backgroundColor: colors.accentOrange, shadowColor: colors.accentOrange }]} onPress={handleNotificationPress}>
-                  <Bell size={24} color={colors.card} />
+              <TouchableOpacity 
+                style={[
+                    styles.headerButton, 
+                    isNotificationsEnabled 
+                        ? { backgroundColor: colors.accentOrange, shadowColor: colors.accentOrange } 
+                        : { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.textSecondary }
+                ]} 
+                onPress={handleNotificationPress}
+              >
+                  {isNotificationsEnabled ? (
+                      <Bell size={24} color={colors.card} />
+                  ) : (
+                      <BellOff size={24} color={colors.textSecondary} />
+                  )}
               </TouchableOpacity>
           </View>
         </View>
 
+        {/* ... (Keep Report Card, List Header, Filter Tabs, Navigation Tabs unchanged) ... */}
         {/* Today's Report Card */}
         <View style={[styles.reportCard, { backgroundColor: colors.card }]}>
           <View style={styles.reportHeader}>
@@ -397,6 +412,16 @@ const HomeScreen = ({ user, navigation }) => {
         <Sparkles size={30} color={colors.card} />
       </TouchableOpacity>
 
+      {/* --- Toast Notification --- */}
+      {toastMessage && (
+          <Animated.View style={[
+              styles.toastContainer, 
+              { opacity: fadeAnim, backgroundColor: colors.card, borderColor: colors.accentOrange }
+          ]}>
+              <Text style={[styles.toastText, { color: colors.accentOrange }]}>{toastMessage}</Text>
+          </Animated.View>
+      )}
+
     </SafeAreaView>
   );
 };
@@ -454,6 +479,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
+    // shadow props managed conditionally inline or keep default
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.5,
     shadowRadius: 5,
@@ -709,6 +735,23 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
   },
+  // --- Toast Styles ---
+  toastContainer: {
+      position: 'absolute',
+      bottom: 100, // Adjusted to be visible above bottom tabs
+      alignSelf: 'center',
+      paddingVertical: 10,
+      paddingHorizontal: 20,
+      borderRadius: 20,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 1,
+      zIndex: 1000, // Ensure it's on top
+  },
+  toastText: {
+      fontSize: 14,
+      fontWeight: '600',
+  }
 });
 
 export default HomeScreen;

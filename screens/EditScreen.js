@@ -1,20 +1,42 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, StyleSheet, TouchableOpacity, Alert, Platform, ScrollView } from 'react-native';
+import { View, Text, TextInput, StyleSheet, TouchableOpacity, Platform, ScrollView } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { Picker } from '@react-native-picker/picker'; // Correct import
+import { Picker } from '@react-native-picker/picker'; 
 import { scheduleTaskNotification, cancelTaskNotification } from '../services/NotificationService';
 import { updateTask } from '../services/Database';
 import { useSQLiteContext } from 'expo-sqlite';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+// 1. Imports for Theme and CustomAlert
+import { useTheme } from '../context/ThemeContext';
+import CustomAlert from '../components/CustomAlert';
 
 const weekDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 const EditScreen = ({ task, onClose }) => {
     const db = useSQLiteContext();
+    const { colors } = useTheme(); // Use theme colors
+
+    // --- Custom Alert State ---
+    const [alertConfig, setAlertConfig] = useState({
+        visible: false,
+        title: '',
+        message: '',
+        type: 'info',
+        buttons: []
+    });
+
+    const showAlert = (title, message, type = 'info', buttons = []) => {
+        setAlertConfig({ visible: true, title, message, type, buttons });
+    };
+
+    const closeAlert = () => {
+        setAlertConfig(prev => ({ ...prev, visible: false }));
+    };
+
     const [title, setTitle] = useState(task.title);
     const [description, setDescription] = useState(task.description);
     const [category, setCategory] = useState(task.type);
-    const [location, setLocation] = useState(task.location); // Add state for location
+    const [location, setLocation] = useState(task.location); 
     const [date, setDate] = useState(task.date ? new Date(task.date) : new Date());
     const [startDate, setStartDate] = useState(task.start_date ? new Date(task.start_date) : new Date());
     const [endDate, setEndDate] = useState(task.end_date ? new Date(task.end_date) : new Date());
@@ -86,7 +108,7 @@ const EditScreen = ({ task, onClose }) => {
 
     const handleSaveTask = async () => {
         if (!title || !category) {
-            Alert.alert('Error', 'Please fill in all fields.');
+            showAlert('Error', 'Please fill in all fields.', 'error');
             return;
         }
 
@@ -102,8 +124,6 @@ const EditScreen = ({ task, onClose }) => {
         // 1. Handle Notification Logic
         let newNotificationId = task.notification_id;
         
-        // If specific fields changed, reschedule
-        // Ideally check if date/time/reminder changed, but rescheduling always is safer for consistency
         if (activeType === 'Task') {
             // Cancel old one
             if (task.notification_id) {
@@ -112,8 +132,8 @@ const EditScreen = ({ task, onClose }) => {
             // Schedule new one
             newNotificationId = await scheduleTaskNotification(
                 title, 
-                formatDate(date), // Ensure this helper is available
-                formatTime(time), // Ensure this helper is available
+                formatDate(date), 
+                formatTime(time), 
                 reminderMinutes
             );
         }
@@ -127,7 +147,7 @@ const EditScreen = ({ task, onClose }) => {
             date: activeType === 'Task' ? formatDate(date) : formatDate(startDate),
             time: formatTime(time),
             type: category,
-            location: location, // Include location in updatedTask
+            location: location, 
             repeat_frequency: repeatFrequency,
             repeat_days: repeatFrequency === 'weekly' ? JSON.stringify(repeatDays) : null,
             start_date: activeType === 'Schedule' ? formatDate(startDate) : null,
@@ -138,204 +158,246 @@ const EditScreen = ({ task, onClose }) => {
 
         try {
             await updateTask(db, updatedTask); 
-            Alert.alert('Success', 'Task updated successfully!');
-            onClose();
+            // Use CustomAlert with success type
+            showAlert('Success', 'Task updated successfully!', 'success', [{
+                text: 'OK',
+                onPress: () => {
+                    closeAlert();
+                    onClose();
+                }
+            }]);
         } catch (error) {
             console.error("Failed to update task:", error);
-            Alert.alert('Error', 'Failed to update task.');
+            showAlert('Error', 'Failed to update task.', 'error');
         }
     };
 
     return (
-        <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
-            <Text style={styles.headerTitle}>{screenTitle}</Text>
+        <View style={{ flex: 1 }}>
+            {/* The Main ScrollView */}
+            <ScrollView style={[styles.container, { backgroundColor: colors.background }]} contentContainerStyle={styles.contentContainer}>
+                <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>{screenTitle}</Text>
 
-            {/* Task Title Input */}
-            <View style={styles.inputContainer}>
-                <View style={styles.inputHeader}>
-                    <MaterialCommunityIcons name="format-title" size={20} color="#6D6D72" />
-                    <Text style={styles.inputLabel}>Task Title</Text>
-                </View>
-                <TextInput style={styles.input} value={title} onChangeText={setTitle} placeholder="e.g. Final Project" placeholderTextColor="#C7C7CC" />
-            </View>
-
-            {/* Description Input */}
-            <View style={styles.inputContainer}>
-                <View style={styles.inputHeader}>
-                    <MaterialCommunityIcons name="card-text-outline" size={20} color="#6D6D72" />
-                    <Text style={styles.inputLabel}>Description</Text>
-                </View>
-                <TextInput style={[styles.input, styles.multilineInput]} value={description} onChangeText={setDescription} multiline placeholder="e.g. Complete the documentation" placeholderTextColor="#C7C7CC" />
-            </View>
-
-            {/* Location Input */}
-            <View style={styles.inputContainer}>
-                <View style={styles.inputHeader}>
-                    <MaterialCommunityIcons name="map-marker-outline" size={20} color="#6D6D72" />
-                    <Text style={styles.inputLabel}>Location</Text>
-                </View>
-                <TextInput style={styles.input} value={location} onChangeText={setLocation} placeholder="e.g. Home" placeholderTextColor="#C7C7CC" />
-            </View>
-            
-            {/* Repeat Section - Only for Schedules */}
-            {activeType === 'Schedule' && (
-                <View>
-                    <Text style={styles.label}>Repeat</Text>
-                    <View style={styles.repeatFrequencyContainer}>
-                        <TouchableOpacity onPress={() => setRepeatFrequency('none')} style={[styles.frequencyButton, repeatFrequency === 'none' && styles.frequencyButtonSelected]}>
-                            <Text style={[styles.frequencyButtonText, repeatFrequency === 'none' && styles.frequencyButtonTextSelected]}>None</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity onPress={() => setRepeatFrequency('daily')} style={[styles.frequencyButton, repeatFrequency === 'daily' && styles.frequencyButtonSelected]}>
-                            <Text style={[styles.frequencyButtonText, repeatFrequency === 'daily' && styles.frequencyButtonTextSelected]}>Daily</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity onPress={() => setRepeatFrequency('weekly')} style={[styles.frequencyButton, repeatFrequency === 'weekly' && styles.frequencyButtonSelected]}>
-                            <Text style={[styles.frequencyButtonText, repeatFrequency === 'weekly' && styles.frequencyButtonTextSelected]}>Weekly</Text>
-                        </TouchableOpacity>
+                {/* Task Title Input */}
+                <View style={styles.inputContainer}>
+                    <View style={styles.inputHeader}>
+                        <MaterialCommunityIcons name="format-title" size={20} color={colors.textSecondary} />
+                        <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>Task Title</Text>
                     </View>
-                    {repeatFrequency === 'weekly' &&
-                    <View style={styles.repeatContainer}>
-                        {weekDays.map((day, index) => (
-                            <TouchableOpacity key={index} onPress={() => handleRepeatDayToggle(day)} style={[styles.dayButton, repeatDays.includes(day) && styles.dayButtonSelected]}>
-                                <Text style={[styles.dayText, repeatDays.includes(day) && styles.dayTextSelected]}>{day.charAt(0)}</Text>
+                    <TextInput 
+                        style={[styles.input, { backgroundColor: colors.inputBackground, color: colors.textPrimary, borderColor: colors.border }]} 
+                        value={title} 
+                        onChangeText={setTitle} 
+                        placeholder="e.g. Final Project" 
+                        placeholderTextColor={colors.textSecondary} 
+                    />
+                </View>
+
+                {/* Description Input */}
+                <View style={styles.inputContainer}>
+                    <View style={styles.inputHeader}>
+                        <MaterialCommunityIcons name="card-text-outline" size={20} color={colors.textSecondary} />
+                        <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>Description</Text>
+                    </View>
+                    <TextInput 
+                        style={[styles.input, styles.multilineInput, { backgroundColor: colors.inputBackground, color: colors.textPrimary, borderColor: colors.border }]} 
+                        value={description} 
+                        onChangeText={setDescription} 
+                        multiline 
+                        placeholder="e.g. Complete the documentation" 
+                        placeholderTextColor={colors.textSecondary} 
+                    />
+                </View>
+
+                {/* Location Input */}
+                <View style={styles.inputContainer}>
+                    <View style={styles.inputHeader}>
+                        <MaterialCommunityIcons name="map-marker-outline" size={20} color={colors.textSecondary} />
+                        <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>Location</Text>
+                    </View>
+                    <TextInput 
+                        style={[styles.input, { backgroundColor: colors.inputBackground, color: colors.textPrimary, borderColor: colors.border }]} 
+                        value={location} 
+                        onChangeText={setLocation} 
+                        placeholder="e.g. Home" 
+                        placeholderTextColor={colors.textSecondary} 
+                    />
+                </View>
+                
+                {/* Repeat Section - Only for Schedules */}
+                {activeType === 'Schedule' && (
+                    <View>
+                        <Text style={[styles.label, { color: colors.textPrimary }]}>Repeat</Text>
+                        <View style={[styles.repeatFrequencyContainer, { backgroundColor: colors.card }]}>
+                            <TouchableOpacity onPress={() => setRepeatFrequency('none')} style={[styles.frequencyButton, repeatFrequency === 'none' && [styles.frequencyButtonSelected, { backgroundColor: colors.purpleAccent }]]}>
+                                <Text style={[styles.frequencyButtonText, { color: colors.purpleAccent }, repeatFrequency === 'none' && [styles.frequencyButtonTextSelected, { color: colors.card }]]}>None</Text>
                             </TouchableOpacity>
-                        ))}
-                        <TouchableOpacity 
-                            onPress={handleEverydayToggle} 
-                            style={[
-                                styles.everydayButton,
-                                repeatDays.length === weekDays.length && styles.dayButtonSelected
-                            ]}
-                        >
-                            <Text style={[
-                                styles.everydayText,
-                                repeatDays.length === weekDays.length && styles.dayTextSelected
-                            ]}>Everyday</Text>
-                        </TouchableOpacity>
-                    </View>
-                    }
-                </View>
-            )}
-
-
-            {/* Category Picker */}
-            <View style={styles.inputContainer}>
-                <View style={styles.inputHeader}>
-                    <MaterialCommunityIcons name="tag-outline" size={20} color="#6D6D72" />
-                    <Text style={styles.inputLabel}>Category</Text>
-                </View>
-                <View style={styles.pickerContainer}>
-                    <Picker selectedValue={category} style={styles.picker} onValueChange={(itemValue) => setCategory(itemValue)} dropdownIconColor="#E0E0E0">
-                        {categories.map((cat, index) => (
-                            <Picker.Item key={index} label={cat.name} value={cat.name} />
-                        ))}
-                    </Picker>
-                </View>
-            </View>
-
-            {/* Date and Time Pickers */}
-            {activeType === 'Task' ? (
-                <View style={styles.row}>
-                    <View style={[styles.inputContainer, styles.halfWidth]}>
-                        <View style={styles.inputHeader}>
-                            <MaterialCommunityIcons name="calendar-month-outline" size={20} color="#6D6D72" />
-                            <Text style={styles.inputLabel}>Due Date</Text>
+                            <TouchableOpacity onPress={() => setRepeatFrequency('daily')} style={[styles.frequencyButton, repeatFrequency === 'daily' && [styles.frequencyButtonSelected, { backgroundColor: colors.purpleAccent }]]}>
+                                <Text style={[styles.frequencyButtonText, { color: colors.purpleAccent }, repeatFrequency === 'daily' && [styles.frequencyButtonTextSelected, { color: colors.card }]]}>Daily</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity onPress={() => setRepeatFrequency('weekly')} style={[styles.frequencyButton, repeatFrequency === 'weekly' && [styles.frequencyButtonSelected, { backgroundColor: colors.purpleAccent }]]}>
+                                <Text style={[styles.frequencyButtonText, { color: colors.purpleAccent }, repeatFrequency === 'weekly' && [styles.frequencyButtonTextSelected, { color: colors.card }]]}>Weekly</Text>
+                            </TouchableOpacity>
                         </View>
-                        <TouchableOpacity onPress={() => setShowDatePicker(true)} style={styles.dateButton}>
-                            <Text style={styles.dateButtonText}>{date.toLocaleDateString()}</Text>
-                        </TouchableOpacity>
-                    </View>
-                    <View style={[styles.inputContainer, styles.halfWidth]}>
-                        <View style={styles.inputHeader}>
-                            <MaterialCommunityIcons name="clock-time-four-outline" size={20} color="#6D6D72" />
-                            <Text style={styles.inputLabel}>Due Time</Text>
+                        {repeatFrequency === 'weekly' &&
+                        <View style={[styles.repeatContainer, { backgroundColor: colors.card }]}>
+                            {weekDays.map((day, index) => (
+                                <TouchableOpacity key={index} onPress={() => handleRepeatDayToggle(day)} style={[styles.dayButton, repeatDays.includes(day) && [styles.dayButtonSelected, { backgroundColor: colors.purpleAccent }]]}>
+                                    <Text style={[styles.dayText, { color: colors.purpleAccent }, repeatDays.includes(day) && [styles.dayTextSelected, { color: colors.card }]]}>{day.charAt(0)}</Text>
+                                </TouchableOpacity>
+                            ))}
+                            <TouchableOpacity 
+                                onPress={handleEverydayToggle} 
+                                style={[
+                                    styles.everydayButton,
+                                    repeatDays.length === weekDays.length && [styles.dayButtonSelected, { backgroundColor: colors.purpleAccent }]
+                                ]}
+                            >
+                                <Text style={[
+                                    styles.everydayText, { color: colors.purpleAccent },
+                                    repeatDays.length === weekDays.length && [styles.dayTextSelected, { color: colors.card }]
+                                ]}>Everyday</Text>
+                            </TouchableOpacity>
                         </View>
-                        <TouchableOpacity onPress={() => setShowTimePicker(true)} style={styles.dateButton}>
-                            <Text style={styles.dateButtonText}>{time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</Text>
-                        </TouchableOpacity>
+                        }
+                    </View>
+                )}
+
+
+                {/* Category Picker */}
+                <View style={styles.inputContainer}>
+                    <View style={styles.inputHeader}>
+                        <MaterialCommunityIcons name="tag-outline" size={20} color={colors.textSecondary} />
+                        <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>Category</Text>
+                    </View>
+                    <View style={[styles.pickerContainer, { backgroundColor: colors.inputBackground, borderColor: colors.border }]}>
+                        <Picker selectedValue={category} style={[styles.picker, { color: colors.textPrimary }]} onValueChange={(itemValue) => setCategory(itemValue)} dropdownIconColor={colors.textSecondary}>
+                            {categories.map((cat, index) => (
+                                <Picker.Item key={index} label={cat.name} value={cat.name} color={colors.textPrimary} />
+                            ))}
+                        </Picker>
                     </View>
                 </View>
-            ) : (
-                <View>
+
+                {/* Date and Time Pickers */}
+                {activeType === 'Task' ? (
                     <View style={styles.row}>
                         <View style={[styles.inputContainer, styles.halfWidth]}>
                             <View style={styles.inputHeader}>
-                                <MaterialCommunityIcons name="calendar-month-outline" size={20} color="#6D6D72" />
-                                <Text style={styles.inputLabel}>Start Date</Text>
+                                <MaterialCommunityIcons name="calendar-month-outline" size={20} color={colors.textSecondary} />
+                                <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>Due Date</Text>
                             </View>
-                            <TouchableOpacity onPress={() => setShowStartDatePicker(true)} style={styles.dateButton}>
-                                <Text style={styles.dateButtonText}>{startDate.toLocaleDateString()}</Text>
+                            <TouchableOpacity onPress={() => setShowDatePicker(true)} style={[styles.dateButton, { backgroundColor: colors.inputBackground, borderColor: colors.border }]}>
+                                <Text style={[styles.dateButtonText, { color: colors.textPrimary }]}>{date.toLocaleDateString()}</Text>
                             </TouchableOpacity>
                         </View>
                         <View style={[styles.inputContainer, styles.halfWidth]}>
                             <View style={styles.inputHeader}>
-                                <MaterialCommunityIcons name="calendar-month-outline" size={20} color="#6D6D72" />
-                                <Text style={styles.inputLabel}>End Date</Text>
+                                <MaterialCommunityIcons name="clock-time-four-outline" size={20} color={colors.textSecondary} />
+                                <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>Due Time</Text>
                             </View>
-                            <TouchableOpacity onPress={() => setShowEndDatePicker(true)} style={styles.dateButton}>
-                                <Text style={styles.dateButtonText}>{endDate.toLocaleDateString()}</Text>
+                            <TouchableOpacity onPress={() => setShowTimePicker(true)} style={[styles.dateButton, { backgroundColor: colors.inputBackground, borderColor: colors.border }]}>
+                                <Text style={[styles.dateButtonText, { color: colors.textPrimary }]}>{time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</Text>
                             </TouchableOpacity>
                         </View>
                     </View>
-                     <View style={[styles.inputContainer]}>
-                        <View style={styles.inputHeader}>
-                            <MaterialCommunityIcons name="clock-time-four-outline" size={20} color="#6D6D72" />
-                            <Text style={styles.inputLabel}>Time</Text>
+                ) : (
+                    <View>
+                        <View style={styles.row}>
+                            <View style={[styles.inputContainer, styles.halfWidth]}>
+                                <View style={styles.inputHeader}>
+                                    <MaterialCommunityIcons name="calendar-month-outline" size={20} color={colors.textSecondary} />
+                                    <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>Start Date</Text>
+                                </View>
+                                <TouchableOpacity onPress={() => setShowStartDatePicker(true)} style={[styles.dateButton, { backgroundColor: colors.inputBackground, borderColor: colors.border }]}>
+                                    <Text style={[styles.dateButtonText, { color: colors.textPrimary }]}>{startDate.toLocaleDateString()}</Text>
+                                </TouchableOpacity>
+                            </View>
+                            <View style={[styles.inputContainer, styles.halfWidth]}>
+                                <View style={styles.inputHeader}>
+                                    <MaterialCommunityIcons name="calendar-month-outline" size={20} color={colors.textSecondary} />
+                                    <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>End Date</Text>
+                                </View>
+                                <TouchableOpacity onPress={() => setShowEndDatePicker(true)} style={[styles.dateButton, { backgroundColor: colors.inputBackground, borderColor: colors.border }]}>
+                                    <Text style={[styles.dateButtonText, { color: colors.textPrimary }]}>{endDate.toLocaleDateString()}</Text>
+                                </TouchableOpacity>
+                            </View>
                         </View>
-                        <TouchableOpacity onPress={() => setShowTimePicker(true)} style={styles.dateButton}>
-                            <Text style={styles.dateButtonText}>{time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</Text>
-                        </TouchableOpacity>
+                        <View style={[styles.inputContainer]}>
+                            <View style={styles.inputHeader}>
+                                <MaterialCommunityIcons name="clock-time-four-outline" size={20} color={colors.textSecondary} />
+                                <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>Time</Text>
+                            </View>
+                            <TouchableOpacity onPress={() => setShowTimePicker(true)} style={[styles.dateButton, { backgroundColor: colors.inputBackground, borderColor: colors.border }]}>
+                                <Text style={[styles.dateButtonText, { color: colors.textPrimary }]}>{time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</Text>
+                            </TouchableOpacity>
+                        </View>
                     </View>
+                )}
+
+                {showDatePicker && <DateTimePicker testID="datePicker" value={date} mode="date" display="default" onChange={onDateChange} style={{ backgroundColor: colors.card }} />}
+                {showTimePicker && <DateTimePicker testID="timePicker" value={time} mode="time" display="default" onChange={onTimeChange} style={{ backgroundColor: colors.card }} />}
+                {showStartDatePicker && <DateTimePicker testID="startDatePicker" value={startDate} mode="date" display="default" onChange={handleStartDateChange} style={{ backgroundColor: colors.card }} />}
+                {showEndDatePicker && <DateTimePicker testID="endDatePicker" value={endDate} mode="date" display="default" onChange={handleEndDateChange} style={{ backgroundColor: colors.card }} />}
+
+                {/* Reminder Section */}
+                <View style={styles.inputContainer}>
+                    <View style={styles.inputHeader}>
+                        <MaterialCommunityIcons name="bell-ring-outline" size={20} color={colors.textSecondary} />
+                        <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>Remind Me Before</Text>
+                    </View>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                        {[0, 5, 10, 15, 30, 60].map((min) => (
+                            <TouchableOpacity
+                                key={min}
+                                style={[
+                                    styles.reminderChip,
+                                    { borderColor: colors.border, backgroundColor: colors.inputBackground },
+                                    reminderMinutes === min && { backgroundColor: colors.purpleAccent, borderColor: colors.purpleAccent }
+                                ]}
+                                onPress={() => setReminderMinutes(min)}
+                            >
+                                <Text style={[
+                                    styles.reminderText, 
+                                    { color: colors.textPrimary },
+                                    reminderMinutes === min && { color: colors.card, fontWeight: 'bold' }
+                                ]}>
+                                    {min === 0 ? 'At time' : `${min} min`}
+                                </Text>
+                            </TouchableOpacity>
+                        ))}
+                    </ScrollView>
                 </View>
-            )}
 
-            {showDatePicker && <DateTimePicker testID="datePicker" value={date} mode="date" display="default" onChange={onDateChange} />}
-            {showTimePicker && <DateTimePicker testID="timePicker" value={time} mode="time" display="default" onChange={onTimeChange} />}
-            {showStartDatePicker && <DateTimePicker testID="startDatePicker" value={startDate} mode="date" display="default" onChange={handleStartDateChange} />}
-            {showEndDatePicker && <DateTimePicker testID="endDatePicker" value={endDate} mode="date" display="default" onChange={handleEndDateChange} />}
-
-            {/* Reminder Section */}
-            <View style={styles.inputContainer}>
-                <View style={styles.inputHeader}>
-                    <MaterialCommunityIcons name="bell-ring-outline" size={20} color="#6D6D72" />
-                    <Text style={styles.inputLabel}>Remind Me Before</Text>
+                {/* Action Buttons */}
+                <View style={styles.buttonContainer}>
+                    <TouchableOpacity style={[styles.button, { backgroundColor: colors.greenAccent }]} onPress={handleSaveTask}>
+                        <MaterialCommunityIcons name="content-save" size={20} color="#fff" />
+                        <Text style={styles.buttonText}>Save Changes</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={[styles.button, { backgroundColor: colors.cancelRed }]} onPress={onClose}>
+                        <MaterialCommunityIcons name="close-circle-outline" size={20} color="#fff" />
+                        <Text style={styles.buttonText}>Cancel</Text>
+                    </TouchableOpacity>
                 </View>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                    {[0, 5, 10, 15, 30, 60].map((min) => (
-                        <TouchableOpacity
-                            key={min}
-                            style={[
-                                styles.reminderChip,
-                                reminderMinutes === min && styles.reminderChipSelected
-                            ]}
-                            onPress={() => setReminderMinutes(min)}
-                        >
-                            <Text style={[styles.reminderText, reminderMinutes === min && styles.reminderTextSelected]}>
-                                {min === 0 ? 'At time' : `${min} min`}
-                            </Text>
-                        </TouchableOpacity>
-                    ))}
-                </ScrollView>
-            </View>
+            </ScrollView>
 
-            {/* Action Buttons */}
-            <View style={styles.buttonContainer}>
-                <TouchableOpacity style={[styles.button, styles.saveButton]} onPress={handleSaveTask}>
-                    <MaterialCommunityIcons name="content-save" size={20} color="#fff" />
-                    <Text style={styles.buttonText}>Save Changes</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={[styles.button, styles.cancelButton]} onPress={onClose}>
-                    <MaterialCommunityIcons name="close-circle-outline" size={20} color="#fff" />
-                    <Text style={styles.buttonText}>Cancel</Text>
-                </TouchableOpacity>
-            </View>
-        </ScrollView>
+            {/* Custom Alert Component - Placed outside ScrollView but inside main View */}
+            <CustomAlert 
+                visible={alertConfig.visible}
+                title={alertConfig.title}
+                message={alertConfig.message}
+                type={alertConfig.type}
+                buttons={alertConfig.buttons}
+                onClose={closeAlert}
+            />
+        </View>
     );
 };
 
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#F2F2F7', // Light background
     },
     contentContainer: {
         padding: 20,
@@ -345,7 +407,6 @@ const styles = StyleSheet.create({
         fontWeight: 'bold',
         marginBottom: 20,
         textAlign: 'center',
-        color: '#000000', // Dark text color
     },
     inputContainer: {
         marginBottom: 20,
@@ -356,32 +417,25 @@ const styles = StyleSheet.create({
         marginBottom: 8,
     },
     inputLabel: {
-        color: '#6D6D72',
         fontSize: 14,
         marginLeft: 8,
     },
     input: {
-        backgroundColor: '#FFFFFF', // White input background
         padding: 15,
         borderRadius: 12,
         fontSize: 16,
-        color: '#000000', // Dark input text
         borderWidth: 1,
-        borderColor: '#C7C7CC',
     },
     multilineInput: {
         height: 100,
         textAlignVertical: 'top',
     },
     pickerContainer: {
-        backgroundColor: '#FFFFFF',
         borderRadius: 12,
         borderWidth: 1,
-        borderColor: '#C7C7CC',
         justifyContent: 'center',
     },
     picker: {
-        color: '#000000',
         height: 50,
     },
     row: {
@@ -389,17 +443,14 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
     },
     dateButton: {
-        backgroundColor: '#FFFFFF',
         padding: 15,
         borderRadius: 12,
         alignItems: 'center',
         borderWidth: 1,
-        borderColor: '#C7C7CC',
         height: 54, // Match input height
         justifyContent: 'center',
     },
     dateButtonText: {
-        color: '#000000',
         fontSize: 16,
     },
     halfWidth: {
@@ -407,6 +458,7 @@ const styles = StyleSheet.create({
     },
     buttonContainer: {
         marginTop: 20,
+        marginBottom: 40, // Add bottom margin for scroll
     },
     button: {
         flexDirection: 'row',
@@ -422,16 +474,14 @@ const styles = StyleSheet.create({
         fontWeight: 'bold',
         marginLeft: 10,
     },
-    saveButton: {
-        backgroundColor: '#34C759', // A vibrant green
-    },
-    cancelButton: {
-        backgroundColor: '#FF3B30', // A vibrant red
+    label: {
+        fontSize: 16,
+        fontWeight: '600',
+        marginBottom: 8,
     },
     repeatFrequencyContainer: {
         flexDirection: 'row',
         justifyContent: 'space-around',
-        backgroundColor: '#FFFFFF',
         borderRadius: 10,
         padding: 5,
         marginBottom: 10,
@@ -442,20 +492,16 @@ const styles = StyleSheet.create({
         borderRadius: 8,
     },
     frequencyButtonSelected: {
-        backgroundColor: '#007AFF',
     },
     frequencyButtonText: {
-        color: '#007AFF',
         fontWeight: 'bold',
     },
     frequencyButtonTextSelected: {
-        color: '#FFFFFF',
     },
     repeatContainer: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        backgroundColor: '#FFFFFF',
         borderRadius: 10,
         padding: 10,
         marginBottom: 20,
@@ -469,15 +515,12 @@ const styles = StyleSheet.create({
         backgroundColor: 'transparent',
     },
     dayButtonSelected: {
-        backgroundColor: '#007AFF',
     },
     dayText: {
-        color: '#007AFF',
         fontWeight: 'bold',
         fontSize: 14,
     },
     dayTextSelected: {
-        color: '#FFFFFF',
     },
     everydayButton: {
         paddingHorizontal: 12,
@@ -487,7 +530,6 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     everydayText: {
-        color: '#007AFF',
         fontWeight: 'bold',
         fontSize: 14,
     },
@@ -496,22 +538,11 @@ const styles = StyleSheet.create({
         paddingHorizontal: 16,
         borderRadius: 20,
         borderWidth: 1,
-        borderColor: '#C7C7CC',
-        backgroundColor: '#FFFFFF',
         marginRight: 10,
-    },
-    reminderChipSelected: {
-        backgroundColor: '#007AFF',
-        borderColor: '#007AFF',
     },
     reminderText: {
         fontSize: 14,
-        color: '#000000',
     },
-    reminderTextSelected: {
-        color: '#FFFFFF',
-        fontWeight: 'bold',
-    }
 });
 
 export default EditScreen;
