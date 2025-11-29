@@ -3,14 +3,14 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platfo
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useSQLiteContext } from 'expo-sqlite';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { addTask } from '../services/Database';
+import { addTask, checkForScheduleConflict } from '../services/Database';
 import { scheduleTaskNotification } from '../services/NotificationService';
-import { ChevronLeft, Check, Calendar, Clock, Briefcase, BookOpen, Repeat, Users, CheckSquare, MapPin, Bell } from 'lucide-react-native';
+import { ChevronLeft, Check, Calendar, Clock, Briefcase, BookOpen, Repeat, Users, CheckSquare, MapPin, Bell, AlignLeft, Tag } from 'lucide-react-native';
 import { useTheme } from '../context/ThemeContext';
-// 1. Import CustomAlert
+import { LinearGradient } from 'expo-linear-gradient';
 import CustomAlert from '../components/CustomAlert';
 
-// Category definitions (kept same as before)
+// Category definitions
 const scheduleCategories = [
     { name: 'Class', icon: BookOpen, color: '#FF9500' }, 
     { name: 'Routine', icon: Repeat, color: '#00BFFF' }, 
@@ -56,6 +56,7 @@ const AddScreen = ({ navigation, route, user: userProp }) => {
     const [repeatDays, setRepeatDays] = useState([]);
     const [reminderMinutes, setReminderMinutes] = useState(5);
     
+    // Date Helpers
     const parseDateString = (dateStr) => {
         if (!dateStr) return new Date();
         const [y, m, d] = dateStr.split('-').map(Number);
@@ -115,22 +116,23 @@ const AddScreen = ({ navigation, route, user: userProp }) => {
         setRepeatDays([]); 
     };
 
-    const CategoryButton = ({ item }) => {
+    const CategoryChip = ({ item }) => {
         const isActive = selectedCategory === item.name;
         return (
             <TouchableOpacity 
                 style={[
-                    styles.categoryButton,
-                    isActive && { backgroundColor: item.color, borderWidth: 0 }
+                    styles.categoryChip,
+                    isActive ? { backgroundColor: item.color, borderColor: item.color } : { backgroundColor: colors.card, borderColor: colors.border }
                 ]}
                 onPress={() => setSelectedCategory(item.name)}
             >
-                <item.icon size={24} color={isActive ? colors.card : item.color} />
-                <Text style={[styles.categoryText, { color: isActive ? colors.card : colors.textPrimary }]}>{item.name}</Text>
+                <item.icon size={18} color={isActive ? '#FFF' : item.color} />
+                <Text style={[styles.categoryChipText, { color: isActive ? '#FFF' : colors.textSecondary }]}>{item.name}</Text>
             </TouchableOpacity>
         );
     };
 
+    // ... Date/Time Handlers ...
     const handleDateChange = (event, selectedDate) => {
         setShowDatePicker(Platform.OS === 'ios');
         if (selectedDate) {
@@ -187,7 +189,7 @@ const AddScreen = ({ navigation, route, user: userProp }) => {
 
     const handleAdd = async () => {
         if (!taskTitle.trim()) {
-            showAlert('Validation Error', 'Task title is required.', 'error');
+            showAlert('Validation Error', 'Title is required.', 'error');
             return;
         }
         if (!user?.id) {
@@ -196,6 +198,23 @@ const AddScreen = ({ navigation, route, user: userProp }) => {
         }
 
         try {
+            // Check for conflict if it is a Schedule
+            if (activeType === 'Schedule') {
+                const isConflict = await checkForScheduleConflict(db, user.id, {
+                    time: dueTime,
+                    date: dueDate,
+                    start_date: startDateString,
+                    end_date: endDateString,
+                    repeat_frequency: repeatFrequency,
+                    repeat_days: repeatDays
+                });
+
+                if (isConflict) {
+                    showAlert('Schedule Conflict', `You already have a schedule at ${dueTime}.`, 'error');
+                    return;
+                }
+            }
+
             let notificationId = null;
             if (activeType === 'Task') { 
                 notificationId = await scheduleTaskNotification(
@@ -222,7 +241,6 @@ const AddScreen = ({ navigation, route, user: userProp }) => {
                 reminder_minutes: reminderMinutes 
             });
             
-            // Replaced Alert with CustomAlert success
             showAlert('Success', `${activeType} added successfully!`, 'success', [{
                 text: 'OK',
                 onPress: () => {
@@ -238,34 +256,15 @@ const AddScreen = ({ navigation, route, user: userProp }) => {
     };
 
     return (
-        <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+        <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'left', 'right']}>
+            
+            {/* Header */}
             <View style={styles.header}>
-                <TouchableOpacity onPress={() => navigation?.goBack()}>
+                <TouchableOpacity onPress={() => navigation?.goBack()} style={styles.backButton}>
                     <ChevronLeft size={28} color={colors.textPrimary} />
                 </TouchableOpacity>
-                <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>Add</Text>
-            </View>
-
-            <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-                Add your schedule or task to stay organized and on track.
-            </Text>
-
-            <View style={[styles.segmentedControl, { backgroundColor: colors.card }]}>
-                <TouchableOpacity 
-                    style={[styles.segment, activeType === 'Task' && [styles.segmentActive, { backgroundColor: colors.purpleAccent + '20' }]]}
-                    onPress={() => handleTypeChange('Task')}
-                >
-                    <Check size={20} color={activeType === 'Task' ? colors.purpleAccent : colors.textSecondary} />
-                    <Text style={[styles.segmentText, { color: colors.textSecondary }, activeType === 'Task' && [styles.segmentTextActive, { color: colors.purpleAccent }]]}>Task</Text>
-                </TouchableOpacity>
-                
-                <TouchableOpacity 
-                    style={[styles.segment, activeType === 'Schedule' && [styles.segmentActive, { backgroundColor: colors.purpleAccent + '20' }]]}
-                    onPress={() => handleTypeChange('Schedule')}
-                >
-                    <Calendar size={20} color={activeType === 'Schedule' ? colors.purpleAccent : colors.textSecondary} />
-                    <Text style={[styles.segmentText, { color: colors.textSecondary }, activeType === 'Schedule' && [styles.segmentTextActive, { color: colors.purpleAccent }]]}>Schedule</Text>
-                </TouchableOpacity>
+                <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>Create New</Text>
+                <View style={{ width: 28 }} />
             </View>
 
             <KeyboardAvoidingView 
@@ -273,206 +272,209 @@ const AddScreen = ({ navigation, route, user: userProp }) => {
                 behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
                 keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
             >
-                <ScrollView showsVerticalScrollIndicator={false}>
+                <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
                     
-                    <Text style={[styles.label, { color: colors.textPrimary }]}>{activeType === 'Schedule' ? 'Schedule Title' : 'Task title'}</Text>
-                    <TextInput
-                        style={[styles.textInput, { backgroundColor: colors.inputBackground, color: colors.textPrimary, borderColor: colors.border }]}
-                        placeholder={activeType === 'Schedule' ? 'Enter schedule title' : 'Enter task title'}
-                        placeholderTextColor={colors.textSecondary}
-                        value={taskTitle}
-                        onChangeText={setTaskTitle}
-                    />
-
-                    <Text style={[styles.label, { color: colors.textPrimary }]}>Category</Text>
-                    <View style={[styles.categoryContainer, { backgroundColor: colors.background }]}>
-                        {(activeType === 'Task' ? taskCategories : scheduleCategories).map(item => (
-                            <CategoryButton key={item.name} item={item} />
-                        ))}
+                    {/* Segmented Control */}
+                    <View style={[styles.typeToggleContainer, { backgroundColor: colors.inputBackground }]}>
+                        <TouchableOpacity 
+                            style={[styles.typeToggleItem, activeType === 'Task' && [styles.typeToggleItemActive, { backgroundColor: colors.card, shadowColor: '#000' }]]}
+                            onPress={() => handleTypeChange('Task')}
+                        >
+                            <Text style={[styles.typeToggleText, { color: activeType === 'Task' ? colors.textPrimary : colors.textSecondary }]}>Task</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity 
+                            style={[styles.typeToggleItem, activeType === 'Schedule' && [styles.typeToggleItemActive, { backgroundColor: colors.card, shadowColor: '#000' }]]}
+                            onPress={() => handleTypeChange('Schedule')}
+                        >
+                            <Text style={[styles.typeToggleText, { color: activeType === 'Schedule' ? colors.textPrimary : colors.textSecondary }]}>Schedule</Text>
+                        </TouchableOpacity>
                     </View>
-                    
-                    <Text style={[styles.label, { color: colors.textPrimary }]}>Description</Text>
-                    <TextInput
-                        style={[styles.textArea, { backgroundColor: colors.inputBackground, color: colors.textPrimary, borderColor: colors.border }]}
-                        placeholder={activeType === 'Task' ? 'Describe your task' : 'Describe your schedule'}
-                        placeholderTextColor={colors.textSecondary}
-                        value={description}
-                        onChangeText={setDescription}
-                        multiline
-                        textAlignVertical="top"
-                    />
 
-                    {activeType === 'Schedule' && (
-                        <View> 
-                            <Text style={[styles.label, { color: colors.textPrimary }]}>Repeat</Text>
-                            <View style={[styles.repeatFrequencyContainer, { backgroundColor: colors.card }]}>
-                                <TouchableOpacity onPress={() => setRepeatFrequency('none')} style={[styles.frequencyButton, repeatFrequency === 'none' && [styles.frequencyButtonSelected, { backgroundColor: colors.purpleAccent }]]}>
-                                    <Text style={[styles.frequencyButtonText, { color: colors.purpleAccent }, repeatFrequency === 'none' && [styles.frequencyButtonTextSelected, { color: colors.card }]]}>None</Text>
-                                </TouchableOpacity>
-                                <TouchableOpacity onPress={() => setRepeatFrequency('daily')} style={[styles.frequencyButton, repeatFrequency === 'daily' && [styles.frequencyButtonSelected, { backgroundColor: colors.purpleAccent }]]}>
-                                    <Text style={[styles.frequencyButtonText, { color: colors.purpleAccent }, repeatFrequency === 'daily' && [styles.frequencyButtonTextSelected, { color: colors.card }]]}>Daily</Text>
-                                </TouchableOpacity>
-                                <TouchableOpacity onPress={() => setRepeatFrequency('weekly')} style={[styles.frequencyButton, repeatFrequency === 'weekly' && [styles.frequencyButtonSelected, { backgroundColor: colors.purpleAccent }]]}>
-                                    <Text style={[styles.frequencyButtonText, { color: colors.purpleAccent }, repeatFrequency === 'weekly' && [styles.frequencyButtonTextSelected, { color: colors.card }]]}>Weekly</Text>
-                                </TouchableOpacity>
-                            </View>
-                            {repeatFrequency === 'weekly' &&
-                            <View style={[styles.repeatContainer, { backgroundColor: colors.card }]}>
-                                {weekDays.map((day, index) => (
-                                    <TouchableOpacity key={index} onPress={() => handleRepeatDayToggle(day)} style={[styles.dayButton, repeatDays.includes(day) && [styles.dayButtonSelected, { backgroundColor: colors.purpleAccent }]]}>
-                                        <Text style={[styles.dayText, { color: colors.purpleAccent }, repeatDays.includes(day) && [styles.dayTextSelected, { color: colors.card }]]}>{day.charAt(0)}</Text>
-                                    </TouchableOpacity>
-                                ))}
-                                <TouchableOpacity 
-                                    onPress={handleEverydayToggle} 
-                                    style={[
-                                        styles.everydayButton,
-                                        repeatDays.length === weekDays.length && [styles.dayButtonSelected, { backgroundColor: colors.purpleAccent }]
-                                    ]}
-                                >
-                                    <Text style={[
-                                        styles.everydayText, { color: colors.purpleAccent },
-                                        repeatDays.length === weekDays.length && [styles.dayTextSelected, { color: colors.card }]
-                                    ]}>Everyday</Text>
-                                </TouchableOpacity>
-                            </View>
-                            }
+                    {/* Title Input */}
+                    <View style={[styles.inputCard, { backgroundColor: colors.card }]}>
+                        <TextInput
+                            style={[styles.titleInput, { color: colors.textPrimary }]}
+                            placeholder="What needs to be done?"
+                            placeholderTextColor={colors.textSecondary}
+                            value={taskTitle}
+                            onChangeText={setTaskTitle}
+                        />
+                    </View>
+
+                    {/* Category Selection */}
+                    <View style={styles.sectionContainer}>
+                        <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>Category</Text>
+                        <View style={styles.categoriesWrapper}>
+                            {(activeType === 'Task' ? taskCategories : scheduleCategories).map(item => (
+                                <CategoryChip key={item.name} item={item} />
+                            ))}
                         </View>
-                    )}
+                    </View>
 
-                    <View style={styles.dateTimeContainer}>
-                        <View style={styles.dateTimeInputGroup}> 
-                            <Text style={[styles.label, { color: colors.textPrimary }]}>{activeType === 'Schedule' ? 'Time' : 'Due Time'}</Text>
-                            <TouchableOpacity onPress={() => setShowTimePicker(true)} style={styles.dateTimeWrapper}>
-                                <Clock size={20} color={colors.textSecondary} style={styles.iconInInput} />
-                                <Text style={[styles.textInput, styles.dateTimeText, { backgroundColor: colors.inputBackground, color: colors.textPrimary, borderColor: colors.border }]}>{dueTime}</Text>
+                    {/* Date & Time Row */}
+                    <View style={styles.row}>
+                        <View style={[styles.dateTimeContainer, { flex: 1, marginRight: 10 }]}>
+                            <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>{activeType === 'Schedule' ? 'Time' : 'Due Time'}</Text>
+                            <TouchableOpacity onPress={() => setShowTimePicker(true)} style={[styles.dateTimeButton, { backgroundColor: colors.card }]}>
+                                <Clock size={20} color={colors.accentOrange} />
+                                <Text style={[styles.dateTimeText, { color: colors.textPrimary }]}>{dueTime}</Text>
                             </TouchableOpacity>
                         </View>
-                        
+
                         {activeType === 'Task' ? (
-                            <View style={styles.dateTimeInputGroup}> 
-                                <Text style={[styles.label, { color: colors.textPrimary }]}>Due Date</Text>
-                                <TouchableOpacity onPress={() => setShowDatePicker(true)} style={styles.dateTimeWrapper}>
-                                    <Calendar size={20} color={colors.textSecondary} style={styles.iconInInput} />
-                                    <Text style={[styles.textInput, styles.dateTimeText, { backgroundColor: colors.inputBackground, color: colors.textPrimary, borderColor: colors.border }]}>{dueDate}</Text>
+                            <View style={[styles.dateTimeContainer, { flex: 1 }]}>
+                                <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>Due Date</Text>
+                                <TouchableOpacity onPress={() => setShowDatePicker(true)} style={[styles.dateTimeButton, { backgroundColor: colors.card }]}>
+                                    <Calendar size={20} color={colors.accentOrange} />
+                                    <Text style={[styles.dateTimeText, { color: colors.textPrimary }]}>{dueDate}</Text>
                                 </TouchableOpacity>
                             </View>
                         ) : (
-                            <View style={styles.scheduleDateContainer}>
-                                <View style={styles.dateTimeInputGroup}> 
-                                    <Text style={[styles.label, { color: colors.textPrimary }]}>Start Date</Text>
-                                    <TouchableOpacity onPress={() => setShowStartDatePicker(true)} style={styles.dateTimeWrapper}>
-                                        <Calendar size={20} color={colors.textSecondary} style={styles.iconInInput} />
-                                        <Text style={[styles.textInput, styles.dateTimeText, { backgroundColor: colors.inputBackground, color: colors.textPrimary, borderColor: colors.border }]}>{startDateString}</Text>
-                                    </TouchableOpacity>
-                                </View>
-                                <View style={styles.dateTimeInputGroup}> 
-                                    <Text style={[styles.label, { color: colors.textPrimary }]}>End Date</Text>
-                                    <TouchableOpacity onPress={() => setShowEndDatePicker(true)} style={styles.dateTimeWrapper}>
-                                        <Calendar size={20} color={colors.textSecondary} style={styles.iconInInput} />
-                                        <Text style={[styles.textInput, styles.dateTimeText, { backgroundColor: colors.inputBackground, color: colors.textPrimary, borderColor: colors.border }]}>{endDateString}</Text>
-                                    </TouchableOpacity>
-                                </View>
+                            <View style={{ flex: 1 }}>
+                                <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>Start Date</Text>
+                                <TouchableOpacity onPress={() => setShowStartDatePicker(true)} style={[styles.dateTimeButton, { backgroundColor: colors.card }]}>
+                                    <Calendar size={20} color={colors.accentOrange} />
+                                    <Text style={[styles.dateTimeText, { color: colors.textPrimary }]}>{startDateString}</Text>
+                                </TouchableOpacity>
                             </View>
                         )}
                     </View>
 
-                    {showDatePicker && (
-                        <DateTimePicker
-                            testID="datePicker"
-                            value={date}
-                            mode="date"
-                            display="default"
-                            onChange={handleDateChange}
-                            textColor={colors.textPrimary}
-                            style={{ backgroundColor: colors.card }}
-                        />
-                    )}
-
-                    {showStartDatePicker && (
-                        <DateTimePicker
-                            testID="startDatePicker"
-                            value={startDate}
-                            mode="date"
-                            display="default"
-                            onChange={handleStartDateChange}
-                            textColor={colors.textPrimary}
-                            style={{ backgroundColor: colors.card }}
-                        />
-                    )}
-
-                    {showEndDatePicker && (
-                        <DateTimePicker
-                            testID="endDatePicker"
-                            value={endDate}
-                            mode="date"
-                            display="default"
-                            onChange={handleEndDateChange}
-                            textColor={colors.textPrimary}
-                            style={{ backgroundColor: colors.card }}
-                        />
-                    )}
-
-                    {showTimePicker && (
-                        <DateTimePicker
-                            testID="timePicker"
-                            value={time}
-                            mode="time"
-                            display="default"
-                            onChange={handleTimeChange}
-                            textColor={colors.textPrimary}
-                            style={{ backgroundColor: colors.card }}
-                        />
-                    )}
-
-                    <Text style={[styles.label, { color: colors.textPrimary }]}>Location</Text>
-                    <View style={styles.locationInputContainer}>
-                        <TextInput
-                            style={[styles.textInput, styles.locationInput, { backgroundColor: colors.inputBackground, color: colors.textPrimary, borderColor: colors.border }]}
-                            placeholder="Type or select from map"
-                            placeholderTextColor={colors.textSecondary}
-                            value={location}
-                            onChangeText={setLocation}
-                        />
-                        <TouchableOpacity onPress={handleOpenMap} style={styles.mapIcon}>
-                            <MapPin size={22} color={colors.accentOrange} />
-                        </TouchableOpacity>
-                    </View>
-                    
-                    <Text style={[styles.label, { color: colors.textPrimary }]}>Remind Me Before</Text>
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 20 }}>
-                        {[0, 5, 10, 15, 30, 60].map((min) => (
-                            <TouchableOpacity
-                                key={min}
-                                style={[
-                                    styles.reminderChip,
-                                    { borderColor: colors.border, backgroundColor: colors.card },
-                                    reminderMinutes === min && { backgroundColor: colors.purpleAccent, borderColor: colors.purpleAccent }
-                                ]}
-                                onPress={() => setReminderMinutes(min)}
-                            >
-                                <Text style={[
-                                    styles.reminderText, 
-                                    { color: colors.textPrimary },
-                                    reminderMinutes === min && { color: '#fff', fontWeight: 'bold' }
-                                ]}>
-                                    {min === 0 ? 'At time' : `${min} min`}
-                                </Text>
+                    {/* End Date for Schedule */}
+                    {activeType === 'Schedule' && (
+                        <View style={[styles.sectionContainer, { marginTop: 10 }]}>
+                            <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>End Date</Text>
+                            <TouchableOpacity onPress={() => setShowEndDatePicker(true)} style={[styles.dateTimeButton, { backgroundColor: colors.card }]}>
+                                <Calendar size={20} color={colors.accentOrange} />
+                                <Text style={[styles.dateTimeText, { color: colors.textPrimary }]}>{endDateString}</Text>
                             </TouchableOpacity>
-                        ))}
-                    </ScrollView>
-                    
-                    <TouchableOpacity 
-                        style={[styles.addButton, { backgroundColor: colors.purpleAccent, shadowColor: colors.purpleAccent }]}
-                        onPress={handleAdd}
-                    >
-                        <Text style={styles.addButtonText}>Add {activeType}</Text>
+                        </View>
+                    )}
+
+                    {/* Repeat Options (Schedule Only) */}
+                    {activeType === 'Schedule' && (
+                        <View style={styles.sectionContainer}>
+                            <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>Repeat</Text>
+                            <View style={[styles.repeatOptionsContainer, { backgroundColor: colors.card }]}>
+                                {['none', 'daily', 'weekly'].map((option) => (
+                                    <TouchableOpacity 
+                                        key={option}
+                                        onPress={() => setRepeatFrequency(option)}
+                                        style={[
+                                            styles.repeatOption, 
+                                            repeatFrequency === option && { backgroundColor: colors.accentOrange + '20', borderColor: colors.accentOrange }
+                                        ]}
+                                    >
+                                        <Text style={[
+                                            styles.repeatOptionText, 
+                                            { color: repeatFrequency === option ? colors.accentOrange : colors.textSecondary, textTransform: 'capitalize' }
+                                        ]}>{option}</Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </View>
+                            
+                            {repeatFrequency === 'weekly' && (
+                                <View style={styles.weekDaysContainer}>
+                                    {weekDays.map((day) => (
+                                        <TouchableOpacity 
+                                            key={day} 
+                                            onPress={() => handleRepeatDayToggle(day)} 
+                                            style={[
+                                                styles.dayCircle, 
+                                                { backgroundColor: colors.inputBackground },
+                                                repeatDays.includes(day) && { backgroundColor: colors.purpleAccent }
+                                            ]}
+                                        >
+                                            <Text style={[
+                                                styles.dayText, 
+                                                { color: repeatDays.includes(day) ? '#FFF' : colors.textSecondary }
+                                            ]}>{day.charAt(0)}</Text>
+                                        </TouchableOpacity>
+                                    ))}
+                                </View>
+                            )}
+                        </View>
+                    )}
+
+                    {/* Location */}
+                    <View style={styles.sectionContainer}>
+                        <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>Location</Text>
+                        <View style={[styles.inputWithIconContainer, { backgroundColor: colors.card }]}>
+                            <TextInput
+                                style={[styles.inputWithIcon, { color: colors.textPrimary }]}
+                                placeholder="Add location"
+                                placeholderTextColor={colors.textSecondary}
+                                value={location}
+                                onChangeText={setLocation}
+                            />
+                            <TouchableOpacity onPress={handleOpenMap}>
+                                <MapPin size={20} color={colors.accentOrange} />
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+
+                    {/* Description */}
+                    <View style={styles.sectionContainer}>
+                        <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>Description</Text>
+                        <View style={[styles.inputCard, { backgroundColor: colors.card, minHeight: 100 }]}>
+                            <TextInput
+                                style={[styles.descriptionInput, { color: colors.textPrimary }]}
+                                placeholder="Add details..."
+                                placeholderTextColor={colors.textSecondary}
+                                value={description}
+                                onChangeText={setDescription}
+                                multiline
+                                textAlignVertical="top"
+                            />
+                        </View>
+                    </View>
+
+                    {/* Reminder */}
+                    <View style={styles.sectionContainer}>
+                        <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>Remind Me</Text>
+                        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.reminderScroll}>
+                            {[0, 5, 10, 15, 30, 60].map((min) => (
+                                <TouchableOpacity
+                                    key={min}
+                                    style={[
+                                        styles.reminderChip,
+                                        { backgroundColor: colors.card, borderColor: colors.border },
+                                        reminderMinutes === min && { backgroundColor: colors.purpleAccent, borderColor: colors.purpleAccent }
+                                    ]}
+                                    onPress={() => setReminderMinutes(min)}
+                                >
+                                    <Text style={[
+                                        styles.reminderText, 
+                                        { color: reminderMinutes === min ? '#FFF' : colors.textPrimary }
+                                    ]}>
+                                        {min === 0 ? 'At time' : `${min}m before`}
+                                    </Text>
+                                </TouchableOpacity>
+                            ))}
+                        </ScrollView>
+                    </View>
+
+                    {/* Add Button */}
+                    <TouchableOpacity onPress={handleAdd} activeOpacity={0.8}>
+                        <LinearGradient
+                            colors={[colors.accentOrange, colors.progressRed]}
+                            start={{ x: 0, y: 0 }}
+                            end={{ x: 1, y: 0 }}
+                            style={styles.addButton}
+                        >
+                            <Text style={styles.addButtonText}>Create {activeType}</Text>
+                        </LinearGradient>
                     </TouchableOpacity>
+
+                    {/* Pickers (Hidden) */}
+                    {showDatePicker && <DateTimePicker value={date} mode="date" display="default" onChange={handleDateChange} />}
+                    {showStartDatePicker && <DateTimePicker value={startDate} mode="date" display="default" onChange={handleStartDateChange} />}
+                    {showEndDatePicker && <DateTimePicker value={endDate} mode="date" display="default" onChange={handleEndDateChange} />}
+                    {showTimePicker && <DateTimePicker value={time} mode="time" display="default" onChange={handleTimeChange} />}
 
                 </ScrollView>
             </KeyboardAvoidingView>
 
-            {/* Custom Alert Component */}
             <CustomAlert 
                 visible={alertConfig.visible}
                 title={alertConfig.title}
@@ -493,208 +495,189 @@ const styles = StyleSheet.create({
     header: {
         flexDirection: 'row',
         alignItems: 'center',
-        paddingTop: 10,
+        justifyContent: 'space-between',
+        paddingVertical: 10,
         marginBottom: 10,
     },
     headerTitle: {
-        fontSize: 30,
+        fontSize: 22,
         fontWeight: 'bold',
-        marginLeft: 20,
     },
-    subtitle: {
-        fontSize: 14,
-        marginBottom: 20,
-        lineHeight: 20,
+    scrollContent: {
+        paddingBottom: 40,
     },
-    segmentedControl: {
+    
+    // Type Toggle
+    typeToggleContainer: {
         flexDirection: 'row',
-        borderRadius: 10,
-        marginBottom: 25,
+        borderRadius: 12,
+        padding: 4,
+        marginBottom: 20,
     },
-    segment: {
+    typeToggleItem: {
         flex: 1,
-        flexDirection: 'row',
+        paddingVertical: 10,
         alignItems: 'center',
-        justifyContent: 'center',
-        paddingVertical: 15,
-        paddingHorizontal: 10,
-        position: 'relative',
-    },
-    segmentActive: {
         borderRadius: 10,
     },
-    segmentText: {
+    typeToggleItemActive: {
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.1,
+        shadowRadius: 2,
+        elevation: 2,
+    },
+    typeToggleText: {
         fontSize: 16,
         fontWeight: '600',
-        marginLeft: 8,
     },
-    segmentTextActive: {
-        fontWeight: 'bold',
+
+    // Inputs
+    inputCard: {
+        borderRadius: 16,
+        paddingHorizontal: 15,
+        paddingVertical: 5,
+        marginBottom: 20,
     },
-    label: {
-        fontSize: 16,
+    titleInput: {
+        fontSize: 18,
         fontWeight: '600',
-        marginBottom: 8,
+        paddingVertical: 10,
     },
-    textInput: {
-        borderRadius: 8,
-        borderWidth: 1,
-        paddingHorizontal: 15,
-        paddingVertical: 15,
+    descriptionInput: {
         fontSize: 16,
+        paddingVertical: 10,
+        minHeight: 100,
+    },
+    
+    // Section Headers
+    sectionContainer: {
         marginBottom: 20,
     },
-    textArea: {
-        borderRadius: 8,
-        borderWidth: 1,
-        paddingHorizontal: 15,
-        paddingVertical: 15,
-        fontSize: 16,
-        height: 100, 
-        marginBottom: 20,
+    sectionLabel: {
+        fontSize: 14,
+        fontWeight: '600',
+        marginBottom: 10,
+        marginLeft: 4,
     },
-    categoryContainer: {
+
+    // Categories
+    categoriesWrapper: {
         flexDirection: 'row',
         flexWrap: 'wrap',
-        justifyContent: 'space-between',
-        marginBottom: 25,
+        gap: 10,
     },
-    categoryButton: {
-        width: '23%', 
-        borderRadius: 10,
-        paddingVertical: 15,
+    categoryChip: {
+        flexDirection: 'row',
         alignItems: 'center',
-        justifyContent: 'center',
+        paddingVertical: 8,
+        paddingHorizontal: 16,
+        borderRadius: 20,
         borderWidth: 1,
     },
-    categoryText: {
-        fontSize: 12,
-        fontWeight: '600',
-        marginTop: 5,
+    categoryChipText: {
+        marginLeft: 6,
+        fontSize: 14,
+        fontWeight: '500',
     },
-    repeatFrequencyContainer: {
+
+    // Date Time
+    row: {
         flexDirection: 'row',
         justifyContent: 'space-between',
-        borderRadius: 10,
-        padding: 5,
         marginBottom: 10,
     },
-    frequencyButton: {
-        paddingHorizontal: 15,
+    dateTimeButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        padding: 15,
+        borderRadius: 16,
+    },
+    dateTimeText: {
+        marginLeft: 10,
+        fontSize: 16,
+        fontWeight: '500',
+    },
+
+    // Repeat
+    repeatOptionsContainer: {
+        flexDirection: 'row',
+        borderRadius: 16,
+        padding: 5,
+        gap: 10,
+        marginBottom: 10,
+    },
+    repeatOption: {
+        flex: 1,
         paddingVertical: 10,
-        borderRadius: 8,
+        alignItems: 'center',
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: 'transparent',
     },
-    frequencyButtonText: {
-        fontWeight: 'bold',
+    repeatOptionText: {
+        fontSize: 14,
+        fontWeight: '600',
     },
-    frequencyButtonSelected: {
-    },
-    frequencyButtonTextSelected: {
-    },
-    repeatContainer: {
+    weekDaysContainer: {
         flexDirection: 'row',
         justifyContent: 'space-between',
-        alignItems: 'center',
-        borderRadius: 10,
-        padding: 10,
-        marginBottom: 20,
+        marginTop: 10,
     },
-    dayButton: {
-        width: 36,
-        height: 36,
-        borderRadius: 18,
+    dayCircle: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        alignItems: 'center',
         justifyContent: 'center',
-        alignItems: 'center',
-        backgroundColor: 'transparent',
-    },
-    dayButtonSelected: {
     },
     dayText: {
         fontWeight: 'bold',
         fontSize: 14,
     },
-    dayTextSelected: {
-    },
-    everydayButton: {
-        paddingHorizontal: 12,
-        height: 36,
-        borderRadius: 18,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    everydayText: {
-        fontWeight: 'bold',
-        fontSize: 14,
-    },
-    dateTimeContainer: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        flexWrap: 'wrap', 
-        marginBottom: 20,
-    },
-    scheduleDateContainer: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        width: '100%',
-    },
-    dateTimeInputGroup: {
-        width: '48%',
-        marginBottom: 15, 
-    },
-    iconInInput: {
-        position: 'absolute',
-        left: 15,
-        zIndex: 1,
-    },
-    dateTimeText: {
-        paddingLeft: 45,
-        marginBottom: 0,
-        paddingVertical: 0, 
-        height: 50, 
-        textAlignVertical: 'center',
-    },
-    dateTimeWrapper: {
+
+    // Location
+    inputWithIconContainer: {
         flexDirection: 'row',
         alignItems: 'center',
-        position: 'relative',
+        paddingHorizontal: 15,
+        borderRadius: 16,
+        height: 50,
     },
-    locationInputContainer: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        position: 'relative',
-        marginBottom: 20,
-    },
-    locationInput: {
+    inputWithIcon: {
         flex: 1,
-        paddingRight: 50, 
-        marginBottom: 0, 
+        fontSize: 16,
+        height: '100%',
     },
-    mapIcon: {
-        position: 'absolute',
-        right: 0,
-        padding: 15, 
-    },
-    addButton: {
-        borderRadius: 10,
-        padding: 18,
-        alignItems: 'center',
-        marginVertical: 30,
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.5,
-        shadowRadius: 8,
-        elevation: 10,
+
+    // Reminder
+    reminderScroll: {
+        gap: 10,
     },
     reminderChip: {
         paddingVertical: 8,
         paddingHorizontal: 16,
         borderRadius: 20,
         borderWidth: 1,
-        marginRight: 10,
     },
     reminderText: {
         fontSize: 14,
+        fontWeight: '500',
+    },
+
+    // Button
+    addButton: {
+        paddingVertical: 18,
+        borderRadius: 16,
+        alignItems: 'center',
+        marginTop: 10,
+        shadowColor: '#FF9500',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+        elevation: 5,
     },
     addButtonText: {
+        color: '#FFF',
         fontSize: 18,
         fontWeight: 'bold',
     },

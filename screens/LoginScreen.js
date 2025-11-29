@@ -1,15 +1,17 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
-  StatusBar, Image, KeyboardAvoidingView, Platform, Animated
+  StatusBar, Image, KeyboardAvoidingView, Platform, Animated, Dimensions, ScrollView
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useSQLiteContext } from 'expo-sqlite';
 import { getUser } from '../services/Database';
-import { Ionicons } from '@expo/vector-icons';
+import { Mail, Lock, Eye, EyeOff, ArrowRight } from 'lucide-react-native'; // Updated icons
 import { useTheme } from '../context/ThemeContext';
 import CustomAlert from '../components/CustomAlert';
+
+const { width, height } = Dimensions.get('window');
 
 const LoginScreen = ({ onLoginSuccess, onSignUpPress }) => {
   const [email, setEmail] = useState('');
@@ -35,117 +37,141 @@ const LoginScreen = ({ onLoginSuccess, onSignUpPress }) => {
     setAlertConfig(prev => ({ ...prev, visible: false }));
   };
 
+  // Animations
   const logoScale = useRef(new Animated.Value(0.8)).current;
+  const fadeAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    Animated.spring(logoScale, {
-      toValue: 1,
-      friction: 6,
-      useNativeDriver: true,
-    }).start();
+    Animated.parallel([
+        Animated.spring(logoScale, {
+            toValue: 1,
+            friction: 6,
+            useNativeDriver: true,
+        }),
+        Animated.timing(fadeAnim, {
+            toValue: 1,
+            duration: 800,
+            useNativeDriver: true,
+        })
+    ]).start();
   }, []);
 
   const handleLogin = async () => {
     try {
       if (!email || !password) {
-         showAlert('Login Failed', 'Please enter email and password.', 'error');
+         showAlert('Missing Fields', 'Please enter both email and password.', 'error');
          return;
       }
 
       const users = await getUser(db, email, password);
 
       if (users.length > 0) {
-        // Show success alert, then login on button press
-        showAlert('Success', 'Login successful!', 'success', [{
-            text: 'OK', 
-            onPress: () => onLoginSuccess(users[0]) 
-        }]);
+        onLoginSuccess(users[0]);
       } else {
         showAlert('Login Failed', 'Invalid email or password.', 'error');
       }
     } catch (err) {
       console.error('Login database error:', err);
-      showAlert('Error', 'An unexpected error occurred while logging in.', 'error');
+      showAlert('Error', 'An unexpected error occurred.', 'error');
     }
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
-      <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent />
 
-      <KeyboardAvoidingView
-        style={styles.wrapper}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
-        <View style={styles.content}>
-          <Animated.View style={{ transform: [{ scale: logoScale }], marginBottom: 32 }}>
-            <Image
-              source={require('../assets/logo.gif')}
-              style={styles.logoImage}
-              resizeMode="cover"
-            />
-          </Animated.View>
+      {/* Decorative Background Elements */}
+      <View style={[styles.circleOne, { backgroundColor: colors.accentOrange + '20' }]} />
+      <View style={[styles.circleTwo, { backgroundColor: colors.purpleAccent + '20' }]} />
 
-          <Text style={[styles.title, { color: colors.textPrimary }]}>SMART REMINDER</Text>
-          <Text style={[styles.subtitle, { color: colors.textSecondary }]}>Your daily productivity companion</Text>
+      <SafeAreaView style={{ flex: 1 }}>
+        <KeyboardAvoidingView
+            style={styles.keyboardView}
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
+            <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+                
+                {/* Header / Logo Section */}
+                <Animated.View style={[styles.headerContainer, { transform: [{ scale: logoScale }], opacity: fadeAnim }]}>
+                    <View style={[styles.logoWrapper, { shadowColor: colors.accentOrange }]}>
+                        <Image
+                            source={require('../assets/logo.gif')}
+                            style={styles.logoImage}
+                            resizeMode="cover"
+                        />
+                    </View>
+                    <Text style={[styles.appName, { color: colors.textPrimary }]}>Smart Scheduler</Text>
+                    <Text style={[styles.tagline, { color: colors.textSecondary }]}>Plan smarter, achieve more.</Text>
+                </Animated.View>
 
-          <TextInput
-            style={[styles.input, { backgroundColor: colors.inputBackground, color: colors.textPrimary }]}
-            placeholder="Email"
-            placeholderTextColor={colors.textSecondary}
-            value={email}
-            onChangeText={setEmail}
-            keyboardType="email-address"
-            autoCapitalize="none"
-          />
+                {/* Form Section */}
+                <Animated.View style={[styles.formContainer, { opacity: fadeAnim }]}>
+                    
+                    {/* Email Input */}
+                    <View style={[styles.inputWrapper, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                        <Mail size={20} color={colors.textSecondary} style={styles.inputIcon} />
+                        <TextInput
+                            style={[styles.input, { color: colors.textPrimary }]}
+                            placeholder="Email Address"
+                            placeholderTextColor={colors.textSecondary}
+                            value={email}
+                            onChangeText={setEmail}
+                            keyboardType="email-address"
+                            autoCapitalize="none"
+                        />
+                    </View>
 
-          {/* Password Input with Toggle */}
-          <View style={[styles.passwordInputContainer, { backgroundColor: colors.inputBackground }]}>
-            <TextInput
-              style={[styles.inputPassword, { color: colors.textPrimary }]} 
-              placeholder="Password"
-              placeholderTextColor={colors.textSecondary}
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry={!showPassword} 
-            />
-            <TouchableOpacity
-              style={styles.passwordToggle}
-              onPress={() => setShowPassword(!showPassword)}
-            >
-              <Ionicons
-                name={showPassword ? 'eye-off-outline' : 'eye-outline'}
-                size={24}
-                color={colors.textSecondary}
-              />
-            </TouchableOpacity>
-          </View>
+                    {/* Password Input */}
+                    <View style={[styles.inputWrapper, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                        <Lock size={20} color={colors.textSecondary} style={styles.inputIcon} />
+                        <TextInput
+                            style={[styles.input, { color: colors.textPrimary }]}
+                            placeholder="Password"
+                            placeholderTextColor={colors.textSecondary}
+                            value={password}
+                            onChangeText={setPassword}
+                            secureTextEntry={!showPassword}
+                        />
+                        <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={styles.eyeIcon}>
+                            {showPassword ? 
+                                <EyeOff size={20} color={colors.textSecondary} /> : 
+                                <Eye size={20} color={colors.textSecondary} />
+                            }
+                        </TouchableOpacity>
+                    </View>
 
-          <TouchableOpacity onPress={handleLogin} style={styles.buttonWrapper}>
-            <LinearGradient
-              colors={[colors.accentOrange, colors.progressRed]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.button}
-            >
-              <Text style={styles.buttonText}>Login</Text>
-            </LinearGradient>
-          </TouchableOpacity>
+                    <TouchableOpacity style={styles.forgotPass}>
+                        <Text style={[styles.forgotPassText, { color: colors.textSecondary }]}>Forgot Password?</Text>
+                    </TouchableOpacity>
 
-          <View style={styles.signupContainer}>
-            <Text style={[styles.signupText, { color: colors.textSecondary }]}>Don't have an account? </Text>
-            <TouchableOpacity onPress={onSignUpPress}>
-              <Text style={[styles.signupLink, { color: colors.accentOrange }]}>Sign Up</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
+                    {/* Login Button */}
+                    <TouchableOpacity onPress={handleLogin} activeOpacity={0.8} style={styles.loginBtnWrapper}>
+                        <LinearGradient
+                            colors={[colors.accentOrange, colors.progressRed]}
+                            start={{ x: 0, y: 0 }}
+                            end={{ x: 1, y: 0 }}
+                            style={styles.loginBtn}
+                        >
+                            <Text style={styles.loginBtnText}>Sign In</Text>
+                            <ArrowRight size={20} color="#FFF" style={{ marginLeft: 8 }} />
+                        </LinearGradient>
+                    </TouchableOpacity>
 
-        <View style={styles.footer}>
-          <Text style={[styles.footerText, { color: colors.textSecondary }]}>Developed by Mawii</Text>
-        </View>
-      </KeyboardAvoidingView>
+                </Animated.View>
 
-      {/* Custom Alert Component */}
+                {/* Footer */}
+                <View style={styles.footer}>
+                    <Text style={[styles.footerText, { color: colors.textSecondary }]}>Don't have an account? </Text>
+                    <TouchableOpacity onPress={onSignUpPress}>
+                        <Text style={[styles.signupText, { color: colors.accentOrange }]}>Sign Up</Text>
+                    </TouchableOpacity>
+                </View>
+
+            </ScrollView>
+        </KeyboardAvoidingView>
+      </SafeAreaView>
+
+      {/* Custom Alert */}
       <CustomAlert 
         visible={alertConfig.visible}
         title={alertConfig.title}
@@ -154,29 +180,139 @@ const LoginScreen = ({ onLoginSuccess, onSignUpPress }) => {
         buttons={alertConfig.buttons}
         onClose={closeAlert}
       />
-    </SafeAreaView>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  wrapper: { flex: 1, justifyContent: 'space-between', alignItems: 'center', paddingVertical: 20 },
-  content: { width: '85%', alignItems: 'center', marginTop: 20 },
-  logoImage: { width: 140, height: 140, borderRadius: 70 },
-  title: { fontSize: 32, fontWeight: '700', letterSpacing: 1, marginBottom: 6, textAlign: 'center' },
-  subtitle: { fontSize: 16, marginBottom: 32, textAlign: 'center' },
-  input: { width: '100%', borderRadius: 14, paddingHorizontal: 18, paddingVertical: 16, fontSize: 16, marginBottom: 16, shadowColor: '#000', shadowOpacity: 0.05, shadowOffset: { width: 0, height: 2 }, shadowRadius: 4, elevation: 2 },
-  passwordInputContainer: { flexDirection: 'row', alignItems: 'center', width: '100%', borderRadius: 14, marginBottom: 16, shadowColor: '#000', shadowOpacity: 0.05, shadowOffset: { width: 0, height: 2 }, shadowRadius: 4, elevation: 2 },
-  inputPassword: { flex: 1, paddingHorizontal: 18, paddingVertical: 16, fontSize: 16 },
-  passwordToggle: { paddingRight: 18, paddingLeft: 10, paddingVertical: 16 },
-  buttonWrapper: { width: '100%', borderRadius: 14, overflow: 'hidden', marginBottom: 20 },
-  button: { paddingVertical: 16, alignItems: 'center', borderRadius: 14 },
-  buttonText: { color: '#FFFFFF', fontSize: 18, fontWeight: '700' },
-  signupContainer: { flexDirection: 'row', alignItems: 'center' },
-  signupText: { fontSize: 14 },
-  signupLink: { fontSize: 14, fontWeight: '600' },
-  footer: { paddingBottom: 10 },
-  footerText: { fontSize: 12, textAlign: 'center' }
+  container: {
+    flex: 1,
+  },
+  // Background Decorations
+  circleOne: {
+    position: 'absolute',
+    top: -height * 0.1,
+    left: -width * 0.2,
+    width: width * 0.7,
+    height: width * 0.7,
+    borderRadius: width * 0.35,
+  },
+  circleTwo: {
+    position: 'absolute',
+    bottom: -height * 0.1,
+    right: -width * 0.2,
+    width: width * 0.8,
+    height: width * 0.8,
+    borderRadius: width * 0.4,
+  },
+  keyboardView: {
+    flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    paddingHorizontal: 30,
+    paddingVertical: 20,
+  },
+  
+  // Header
+  headerContainer: {
+    alignItems: 'center',
+    marginBottom: 40,
+  },
+  logoWrapper: {
+    width: 110,
+    height: 110,
+    borderRadius: 55,
+    marginBottom: 20,
+    elevation: 10,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    backgroundColor: '#fff', 
+    padding: 2, // Border effect
+  },
+  logoImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 55,
+  },
+  appName: {
+    fontSize: 28,
+    fontWeight: '800',
+    marginBottom: 5,
+    letterSpacing: 0.5,
+  },
+  tagline: {
+    fontSize: 16,
+    fontWeight: '500',
+  },
+
+  // Form
+  formContainer: {
+    width: '100%',
+  },
+  inputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 16,
+    borderWidth: 1,
+    paddingHorizontal: 15,
+    marginBottom: 15,
+    height: 56,
+  },
+  inputIcon: {
+    marginRight: 12,
+  },
+  input: {
+    flex: 1,
+    fontSize: 16,
+    height: '100%',
+  },
+  eyeIcon: {
+    padding: 8,
+  },
+  forgotPass: {
+    alignSelf: 'flex-end',
+    marginBottom: 25,
+  },
+  forgotPassText: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  loginBtnWrapper: {
+    shadowColor: '#FF4500',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  loginBtn: {
+    flexDirection: 'row',
+    height: 56,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loginBtnText: {
+    color: '#FFF',
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+
+  // Footer
+  footer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    marginTop: 30,
+  },
+  footerText: {
+    fontSize: 15,
+  },
+  signupText: {
+    fontSize: 15,
+    fontWeight: 'bold',
+  },
 });
 
 export default LoginScreen;

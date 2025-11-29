@@ -1,6 +1,7 @@
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
 import { Platform, Alert } from 'react-native';
+import { Colors } from '../constants/Colors'; // Import colors for consistency
 
 // Configure how notifications appear when the app is in foreground
 Notifications.setNotificationHandler({
@@ -17,14 +18,15 @@ export const registerForPushNotificationsAsync = async () => {
       name: 'default',
       importance: Notifications.AndroidImportance.MAX,
       vibrationPattern: [0, 250, 250, 250],
-      lightColor: '#FF231F7C',
+      lightColor: '#FF9500', // Updated to match your App's Accent Orange
     });
   }
 
   if (!Device.isDevice) {
+    // Note: In a service file, we must use native Alerts as we can't render custom UI components here.
     Alert.alert(
-      'Notifications not supported',
-      'Push notifications are not supported on emulators. Please use a physical device for this feature.'
+      'Device Required',
+      'Push notifications are not supported on emulators. Please use a physical device.'
     );
     return null;
   }
@@ -38,13 +40,10 @@ export const registerForPushNotificationsAsync = async () => {
   }
 
   if (finalStatus !== 'granted') {
-    Alert.alert('Permission required', 'Failed to get push token for push notification!');
+    Alert.alert('Permission Required', 'Please enable notifications in settings to receive task reminders.');
     return null;
   }
   
-  // We don't strictly need the token for local scheduling, but good to have for remote
-  // const token = (await Notifications.getExpoPushTokenAsync()).data;
-  // return token;
   return true;
 };
 
@@ -71,11 +70,14 @@ export const scheduleTaskNotification = async (title, date, time, reminderMinute
     // If the trigger time is in the past, don't schedule
     if (triggerDate < new Date()) return null;
 
+    // Enhanced Notification Content
     const id = await Notifications.scheduleNotificationAsync({
       content: {
-        title: "Task Reminder",
+        title: "🔔 Upcoming Task",
         body: `Your task "${title}" starts in ${reminderMinutes} minutes!`,
         sound: 'default',
+        color: '#FF9500', // Android accent color
+        data: { date, time }, // Optional data payload
       },
       trigger: triggerDate,
     });

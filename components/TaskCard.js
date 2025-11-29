@@ -1,16 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Pressable, TouchableOpacity } from 'react-native';
-import { MapPin, Clock, Calendar, Check, Edit, X, Trash2 } from 'lucide-react-native';
+import { View, Text, StyleSheet, Pressable, TouchableOpacity, Animated } from 'react-native';
+import { MapPin, Clock, Calendar, Check, Edit2, Trash2, X, AlertCircle } from 'lucide-react-native';
 import { useTheme } from '../context/ThemeContext';
 
-const getCategoryTagColor = (type) => {
+const getCategoryColor = (type) => {
   switch (type) {
-    case 'Task': return '#FFC72C'; // yellowAccent
-    case 'Class': return '#FF9500'; // accentOrange
-    case 'Routine': return '#00BFFF'; // blueAccent
-    case 'Meeting': return '#4CAF50'; // greenAccent
-    case 'Work': return '#5F50A9'; // purpleAccent
-    default: return '#6B7280'; // textSecondary
+    case 'Task': return '#FFC72C'; // Yellow
+    case 'Class': return '#FF9500'; // Orange
+    case 'Routine': return '#00BFFF'; // Blue
+    case 'Meeting': return '#4CAF50'; // Green
+    case 'Work': return '#5F50A9'; // Purple
+    default: return '#9CA3AF'; // Gray
   }
 };
 
@@ -19,6 +19,25 @@ export const TaskCard = ({ id, type, title, description, time, location, date, d
   const [remainingTime, setRemainingTime] = useState('');
   const [isEditing, setIsEditing] = useState(false);
   const [isPastDeadline, setIsPastDeadline] = useState(false);
+  
+  // Animation for actions view
+  const fadeAnim = useState(new Animated.Value(0))[0];
+
+  useEffect(() => {
+    if (isEditing) {
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 200,
+        useNativeDriver: true,
+      }).start();
+    } else {
+      Animated.timing(fadeAnim, {
+        toValue: 0,
+        duration: 150,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [isEditing]);
 
   useEffect(() => {
     const calculateRemainingTime = () => {
@@ -39,228 +58,260 @@ export const TaskCard = ({ id, type, title, description, time, location, date, d
       const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
 
       if (days > 0) {
-        setRemainingTime(`Remaining Time: ${days}d ${hours}h`);
+        setRemainingTime(`${days}d ${hours}h left`);
       } else if (hours > 0) {
-        setRemainingTime(`Remaining Time: ${hours}h ${minutes}m`);
+        setRemainingTime(`${hours}h ${minutes}m left`);
       } else if (minutes > 0) {
-        setRemainingTime(`Remaining Time: ${minutes}m`);
+        setRemainingTime(`${minutes}m left`);
       } else {
-        const seconds = Math.floor((diff % (1000 * 60)) / 1000);
-        setRemainingTime(`${seconds}s`);
+        setRemainingTime(`Now`);
       }
     };
 
-    // Only run the timer if the task is not done and the deadline has not passed
     if (status !== 'done' && !isPastDeadline) {
-      const interval = setInterval(calculateRemainingTime, 1000);
+      calculateRemainingTime(); // Initial call
+      const interval = setInterval(calculateRemainingTime, 60000); // Update every minute is usually enough
       return () => clearInterval(interval);
     }
   }, [deadline, status, isPastDeadline, type]);
 
   const handleLongPress = () => {
-    setIsEditing(prevState => !prevState);
+    setIsEditing(prev => !prev);
   };
 
-  const handleDonePress = () => {
-    onDone(id);
-    setIsEditing(false);
+  const handleAction = (action) => {
+    // Small delay to allow ripple/press effect
+    setTimeout(() => {
+        if (action === 'done') onDone(id);
+        if (action === 'edit') onEdit({ id, type, title, description, time, location, date, deadline, status });
+        if (action === 'delete') onDelete && onDelete(id);
+        setIsEditing(false);
+    }, 100);
   };
 
-  const handleEditPress = () => {
-    onEdit({ 
-        id, 
-        type, 
-        title, 
-        description, 
-        time, 
-        location, 
-        date, 
-        deadline, 
-        status 
-    });
-    setIsEditing(false);
-  };
-
-  const handleDeletePress = () => {
-    if (onDelete) {
-        onDelete(id);
-    }
-    setIsEditing(false);
-  };
-
-  const handleCancelPress = () => {
-    setIsEditing(false);
-  };
+  const categoryColor = getCategoryColor(type);
 
   return (
-    <Pressable onLongPress={handleLongPress} onPress={() => isEditing && setIsEditing(false)} delayLongPress={300}>
-      <View style={[styles.card, { backgroundColor: colors.card, shadowColor: colors.shadow }, isEditing && styles.cardEditing]}>
-        {isEditing ? (
-          <View style={styles.actionsContainer}>
-            {type === 'Task' && status !== 'done' && (
-              <TouchableOpacity style={[styles.actionButton, { backgroundColor: colors.greenAccent }]} onPress={handleDonePress}>
-                <Check size={24} color={colors.card} />
-                <Text style={styles.actionButtonText}>Done</Text>
-              </TouchableOpacity>
-            )}
-            <TouchableOpacity style={[styles.actionButton, { backgroundColor: colors.accentOrange }]} onPress={handleEditPress} activeOpacity={0.7}>
-              <Edit size={24} color={colors.card} />
-              <Text style={styles.actionButtonText}>Edit</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.actionButton, { backgroundColor: colors.cancelRed }]} onPress={handleDeletePress} activeOpacity={0.7}>
-              <Trash2 size={24} color={colors.card} />
-              <Text style={styles.actionButtonText}>Delete</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.actionButton, { backgroundColor: colors.textSecondary }]} onPress={handleCancelPress} activeOpacity={0.7}>
-              <X size={24} color={colors.card} />
-              <Text style={styles.actionButtonText}>Cancel</Text>
-            </TouchableOpacity>
-          </View>
-        ) : (
-          <>
-            <View style={styles.cardContent} pointerEvents="none">
-              <View style={styles.topRow}>
-                <View style={[styles.tagContainer, { backgroundColor: getCategoryTagColor(type) || colors.textSecondary }]}>
-                  <Text style={[styles.tagText, { color: colors.card }]}>{type}</Text>
-                </View>
-                <View style={styles.locationContainer}>
-                  <MapPin size={16} color={colors.textSecondary} style={styles.locationIcon} />
-                  {location ? <Text style={[styles.locationText, { color: colors.textSecondary }]}>{location}</Text> : null}
-                </View>
-              </View>
-              <Text style={[styles.titleText, { color: colors.textPrimary }]}>{title}</Text>
-              {description && (
-                <>
-                  <Text style={[styles.detailsText, { color: colors.textSecondary }]}>{description}</Text>
-                  <View style={[styles.horizontalLine, { backgroundColor: colors.textSecondary }]} />
-                </>
-              )}
-              <View style={styles.timeRow}>
-                <View style={styles.dateTimeContainer}>
-                  <View style={styles.timeDetail}>
-                    <Calendar size={14} color={colors.textSecondary} style={styles.timeIcon} />
-                    <Text style={[styles.timeText, { color: colors.textSecondary }]}>{date}</Text>
-                  </View>
-                  <View style={styles.timeDetail}>
-                    <Clock size={14} color={colors.textSecondary} style={styles.timeIcon} />
-                    <Text style={[styles.timeText, { color: colors.textSecondary }]}>{time}</Text>
-                  </View>
-                </View>
-                {status === 'done' ? (
-                  <Text style={[styles.doneText, { color: colors.greenAccent }]}>Done</Text>
-                ) : isPastDeadline && type !== 'Task' ? (
-                  <Text style={[styles.doneText, { color: colors.greenAccent }]}>Done</Text>
-                ) : (
-                  <Text style={[styles.remainingText, { color: colors.accentOrange }, remainingTime === 'Missed' && { color: colors.cancelRed }]}>{remainingTime}</Text>
-                )}
-              </View>
+    <Pressable 
+      onLongPress={handleLongPress} 
+      onPress={() => isEditing && setIsEditing(false)} 
+      delayLongPress={300}
+      style={({ pressed }) => [
+        styles.container, 
+        { 
+            backgroundColor: colors.card, 
+            shadowColor: colors.shadow || '#000',
+            transform: [{ scale: pressed ? 0.98 : 1 }]
+        }
+      ]}
+    >
+      {/* Main Content */}
+      <View style={[styles.content, isEditing && { opacity: 0.3 }]}>
+        
+        {/* Header: Tag & Location */}
+        <View style={styles.headerRow}>
+            <View style={[styles.categoryBadge, { backgroundColor: categoryColor + '20' }]}>
+                <Text style={[styles.categoryText, { color: categoryColor }]}>{type}</Text>
             </View>
-          </>
-        )}
+            
+            {location ? (
+                <View style={styles.locationContainer}>
+                    <MapPin size={14} color={colors.textSecondary} />
+                    <Text style={[styles.locationText, { color: colors.textSecondary }]} numberOfLines={1}>
+                        {location}
+                    </Text>
+                </View>
+            ) : null}
+        </View>
+
+        {/* Body: Title & Desc */}
+        <View style={styles.body}>
+            <Text style={[styles.title, { color: colors.textPrimary }]} numberOfLines={2}>{title}</Text>
+            {description ? (
+                <Text style={[styles.description, { color: colors.textSecondary }]} numberOfLines={2}>
+                    {description}
+                </Text>
+            ) : null}
+        </View>
+
+        {/* Footer: Date/Time & Status */}
+        <View style={styles.footer}>
+            <View style={styles.dateTimeWrapper}>
+                <Calendar size={14} color={colors.textSecondary} />
+                <Text style={[styles.footerText, { color: colors.textSecondary }]}>{date}</Text>
+                <View style={[styles.dotSeparator, { backgroundColor: colors.textSecondary }]} />
+                <Clock size={14} color={colors.textSecondary} />
+                <Text style={[styles.footerText, { color: colors.textSecondary }]}>{time}</Text>
+            </View>
+
+            {status === 'done' ? (
+                <View style={[styles.statusBadge, { backgroundColor: colors.greenAccent + '20' }]}>
+                    <Text style={[styles.statusText, { color: colors.greenAccent }]}>Done</Text>
+                </View>
+            ) : isPastDeadline && type !== 'Task' ? (
+                 <View style={[styles.statusBadge, { backgroundColor: colors.greenAccent + '20' }]}>
+                    <Text style={[styles.statusText, { color: colors.greenAccent }]}>Done</Text>
+                </View>
+            ) : (
+                <View style={[
+                    styles.statusBadge, 
+                    { backgroundColor: remainingTime === 'Missed' ? colors.cancelRed + '20' : colors.accentOrange + '20' }
+                ]}>
+                    <Text style={[
+                        styles.statusText, 
+                        { color: remainingTime === 'Missed' ? colors.cancelRed : colors.accentOrange }
+                    ]}>
+                        {remainingTime}
+                    </Text>
+                </View>
+            )}
+        </View>
       </View>
+
+      {/* Action Overlay (Visible on Long Press) */}
+      {isEditing && (
+        <Animated.View style={[styles.overlay, { opacity: fadeAnim }]}>
+            <View style={styles.actionsRow}>
+                {type === 'Task' && status !== 'done' && (
+                    <TouchableOpacity style={[styles.actionBtn, { backgroundColor: colors.greenAccent }]} onPress={() => handleAction('done')}>
+                        <Check size={22} color="#FFF" />
+                        <Text style={styles.actionLabel}>Done</Text>
+                    </TouchableOpacity>
+                )}
+                
+                <TouchableOpacity style={[styles.actionBtn, { backgroundColor: colors.accentOrange }]} onPress={() => handleAction('edit')}>
+                    <Edit2 size={22} color="#FFF" />
+                    <Text style={styles.actionLabel}>Edit</Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity style={[styles.actionBtn, { backgroundColor: colors.cancelRed }]} onPress={() => handleAction('delete')}>
+                    <Trash2 size={22} color="#FFF" />
+                    <Text style={styles.actionLabel}>Delete</Text>
+                </TouchableOpacity>
+            </View>
+        </Animated.View>
+      )}
     </Pressable>
   );
 };
 
 const styles = StyleSheet.create({
-  card: {
-    borderRadius: 12,
+  container: {
+    borderRadius: 16,
     marginBottom: 12,
-    elevation: 3,
+    elevation: 2, // Android shadow
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    overflow: 'hidden', 
+    shadowOpacity: 0.08,
+    shadowRadius: 6, // Softer iOS shadow
+    position: 'relative',
+    overflow: 'hidden', // Ensures actions don't spill out
   },
-  cardEditing: {
-    padding: 0,
+  content: {
+    padding: 16,
   },
-  cardContent: {
-    padding: 14,
-    justifyContent: 'center',
-  },
-  topRow: {
+  // Header
+  headerRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 10,
   },
-  tagContainer: {
-    paddingHorizontal: 12,
+  categoryBadge: {
+    paddingHorizontal: 10,
     paddingVertical: 4,
-    borderRadius: 15,
-    alignSelf: 'flex-start',
+    borderRadius: 12,
   },
-  tagText: {
-    fontSize: 14,
-    fontWeight: 'bold',
+  categoryText: {
+    fontSize: 12,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   locationContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-  },
-  locationIcon: {
-    marginRight: 4,
+    maxWidth: '50%',
   },
   locationText: {
     fontSize: 13,
+    marginLeft: 4,
   },
-  titleText: {
-    fontSize: 22,
+  // Body
+  body: {
+    marginBottom: 12,
+  },
+  title: {
+    fontSize: 18,
     fontWeight: 'bold',
-    marginBottom: 8,
+    marginBottom: 4,
   },
-  detailsText: {
+  description: {
     fontSize: 14,
+    lineHeight: 20,
   },
-  horizontalLine: {
-    height: 1,
-    opacity: 0.2,
-    marginVertical: 12,
-  },
-  timeRow: {
+  // Footer
+  footer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(0,0,0,0.05)',
+    paddingTop: 12,
   },
-  dateTimeContainer: {
-      flexDirection: 'row',
-      alignItems: 'center',
-  },
-  timeDetail: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      marginRight: 12,
-  },
-  timeIcon: {
-      marginRight: 4,
-  },
-  timeText: {
-    fontSize: 12,
-  },
-  remainingText: {
-    fontWeight: 'bold',
-    fontSize: 12,
-  },
-  doneText: {
-    fontWeight: 'bold',
-    fontSize: 12,
-  },
-  actionsContainer: {
+  dateTimeWrapper: {
     flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'stretch',
-    height: 150,
+    alignItems: 'center',
   },
-  actionButton: {
-    flex: 1,
+  footerText: {
+    fontSize: 13,
+    marginLeft: 4,
+    fontWeight: '500',
+  },
+  dotSeparator: {
+    width: 3,
+    height: 3,
+    borderRadius: 1.5,
+    marginHorizontal: 8,
+  },
+  statusBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  statusText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  // Edit Overlay
+  overlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(255,255,255,0.95)', // Slightly translucent background
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 10,
+    zIndex: 10,
   },
-  actionButtonText: {
-    fontSize: 14, 
-    fontWeight: 'bold',
-    marginTop: 8,
+  actionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 15,
+  },
+  actionBtn: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    elevation: 4,
+  },
+  actionLabel: {
+    position: 'absolute',
+    bottom: -20,
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#555',
   },
 });

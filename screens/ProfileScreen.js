@@ -1,85 +1,59 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Switch, Image, Alert, Animated } from 'react-native';
+import React, { useState, useRef } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Switch, Image, Animated, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import { useSQLiteContext } from 'expo-sqlite';
 import { updateProfilePicture } from '../services/Database';
-import { User, Edit, ChevronDown, LogOut, Moon, Sun } from 'lucide-react-native';
+import { User, Camera, Moon, Sun, Bell, LogOut, Mail, ChevronRight, Shield } from 'lucide-react-native';
 import { useTheme } from '../context/ThemeContext';
-// 1. Import CustomAlert
+import { LinearGradient } from 'expo-linear-gradient';
 import CustomAlert from '../components/CustomAlert';
 
 const ProfileScreen = ({ user, onLogout }) => {
     const db = useSQLiteContext();
-    const { theme, toggleTheme, colors, isNotificationsEnabled, toggleNotifications } = useTheme(); // Use global state
+    const { theme, toggleTheme, colors, isNotificationsEnabled, toggleNotifications } = useTheme();
     
     const [profilePicture, setProfilePicture] = useState(user?.profile_picture);
     
-    // --- Custom Alert State (For Logout) ---
-    const [alertConfig, setAlertConfig] = useState({
-        visible: false,
-        title: '',
-        message: '',
-        type: 'info',
-        buttons: []
-    });
+    // --- Alert & Toast State ---
+    const [alertConfig, setAlertConfig] = useState({ visible: false, title: '', message: '', type: 'info', buttons: [] });
+    const [toastMessage, setToastMessage] = useState(null);
+    const fadeAnim = useRef(new Animated.Value(0)).current;
 
     const showAlert = (title, message, type = 'info', buttons = []) => {
         setAlertConfig({ visible: true, title, message, type, buttons });
     };
 
-    const closeAlert = () => {
-        setAlertConfig(prev => ({ ...prev, visible: false }));
-    };
-
-    // --- Toast Notification State (For Switches) ---
-    const [toastMessage, setToastMessage] = useState(null);
-    const [fadeAnim] = useState(new Animated.Value(0)); // For fade animation
+    const closeAlert = () => setAlertConfig(prev => ({ ...prev, visible: false }));
 
     const showToast = (message) => {
         setToastMessage(message);
-        // Fade In
-        Animated.timing(fadeAnim, {
-            toValue: 1,
-            duration: 300,
-            useNativeDriver: true,
-        }).start();
-
-        // Wait and Fade Out
+        Animated.timing(fadeAnim, { toValue: 1, duration: 300, useNativeDriver: true }).start();
         setTimeout(() => {
-            Animated.timing(fadeAnim, {
-                toValue: 0,
-                duration: 300,
-                useNativeDriver: true,
-            }).start(() => setToastMessage(null));
+            Animated.timing(fadeAnim, { toValue: 0, duration: 300, useNativeDriver: true }).start(() => setToastMessage(null));
         }, 2000);
     };
 
+    // --- Handlers ---
     const handleThemeSwitch = () => {
         toggleTheme();
         const newMode = theme === 'light' ? 'Dark Mode' : 'Light Mode';
         showToast(`${newMode} Enabled`);
     };
 
-    const handleNotificationSwitch = (value) => {
-        toggleNotifications(); // Use global toggle
-        showToast(`Notifications turned ${value ? 'On' : 'Off'}`);
+    const handleNotificationSwitch = () => {
+        toggleNotifications();
+        showToast(`Notifications turned ${!isNotificationsEnabled ? 'On' : 'Off'}`);
     };
 
     const handleLogoutPress = () => {
         showAlert(
             'Logout',
             'Are you sure you want to log out?',
-            'info', // Using info icon, or could use 'error' for red alert
+            'info',
             [
                 { text: 'Cancel', style: 'cancel', onPress: closeAlert },
-                { 
-                    text: 'Logout', 
-                    onPress: () => {
-                        closeAlert();
-                        onLogout();
-                    } 
-                }
+                { text: 'Logout', onPress: () => { closeAlert(); onLogout(); } }
             ]
         );
     };
@@ -97,83 +71,120 @@ const ProfileScreen = ({ user, onLogout }) => {
             setProfilePicture(newUri);
             try {
                 await updateProfilePicture(db, user.id, newUri);
+                showToast("Profile picture updated");
             } catch (error) {
-                console.error("Failed to update profile picture in DB:", error);
-                // Use Custom Alert for error
+                console.error("Failed to update profile picture:", error);
                 showAlert('Error', 'Could not save profile picture.', 'error');
             }
         }
     };
 
+    // --- Components ---
+    const SettingItem = ({ icon: Icon, label, value, onToggle, type = 'switch' }) => (
+        <View style={[styles.settingItem, { borderBottomColor: colors.border }]}>
+            <View style={styles.settingLeft}>
+                <View style={[styles.iconContainer, { backgroundColor: colors.inputBackground }]}>
+                    <Icon size={20} color={colors.textPrimary} />
+                </View>
+                <Text style={[styles.settingLabel, { color: colors.textPrimary }]}>{label}</Text>
+            </View>
+            {type === 'switch' ? (
+                <Switch
+                    trackColor={{ false: colors.border, true: colors.accentOrange }}
+                    thumbColor={'#fff'}
+                    onValueChange={onToggle}
+                    value={value}
+                />
+            ) : (
+                <ChevronRight size={20} color={colors.textSecondary} />
+            )}
+        </View>
+    );
+
     return (
         <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'left', 'right']}>
-            <View style={styles.header}>
-                <Text style={[styles.titleText, { color: colors.textPrimary }]}>Profile</Text>
-            </View>
+            <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+                
+                <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>My Profile</Text>
 
-            <View style={[styles.profileCard, { backgroundColor: colors.card, shadowColor: colors.textPrimary, }]}>
-                <TouchableOpacity onPress={pickImage}>
-                    <View style={[styles.avatarContainer, { backgroundColor: colors.background }]}>
-                        {profilePicture ? (
-                            <Image source={{ uri: profilePicture }} style={styles.avatar} />
-                        ) : (
-                            <User size={50} color={colors.textPrimary} />
-                        )}
+                {/* Profile Card */}
+                <LinearGradient
+                    colors={[colors.accentOrange, colors.progressRed]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.profileCard}
+                >
+                    <View style={styles.profileHeader}>
+                        <TouchableOpacity onPress={pickImage} activeOpacity={0.8}>
+                            <View style={styles.avatarWrapper}>
+                                {profilePicture ? (
+                                    <Image source={{ uri: profilePicture }} style={styles.avatar} />
+                                ) : (
+                                    <View style={[styles.avatarPlaceholder, { backgroundColor: colors.card }]}>
+                                        <User size={40} color={colors.textSecondary} />
+                                    </View>
+                                )}
+                                <View style={[styles.editBadge, { backgroundColor: colors.card }]}>
+                                    <Camera size={14} color={colors.textPrimary} />
+                                </View>
+                            </View>
+                        </TouchableOpacity>
+                        <View style={styles.userInfo}>
+                            <Text style={styles.userName}>{user.name}</Text>
+                            <View style={styles.emailContainer}>
+                                <Mail size={14} color="rgba(255,255,255,0.8)" style={{ marginRight: 6 }} />
+                                <Text style={styles.userEmail}>{user.email}</Text>
+                            </View>
+                        </View>
                     </View>
-                </TouchableOpacity>
+                </LinearGradient>
 
-                <Text style={[styles.userNameText, { color: colors.textPrimary }]}>{user.name}</Text>
-            </View>
-
-            {/* --- Dark Mode Switch --- */}
-            <View style={[styles.settingInputContainer, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                <View style={styles.settingRow}>
-                    <View style={{flexDirection: 'row', alignItems: 'center'}}>
-                        {theme === 'dark' ? <Moon size={20} color={colors.textPrimary} style={{marginRight: 10}}/> : <Sun size={20} color={colors.textPrimary} style={{marginRight: 10}}/>}
-                        <Text style={[styles.settingLabel, { color: colors.textPrimary }]}>Dark Mode</Text>
-                    </View>
-                    <Switch
-                        trackColor={{ false: colors.textSecondary, true: colors.accentOrange }}
-                        thumbColor={colors.card}
-                        onValueChange={handleThemeSwitch}
-                        value={theme === 'dark'}
+                {/* Preferences Section */}
+                <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Preferences</Text>
+                <View style={[styles.settingsContainer, { backgroundColor: colors.card }]}>
+                    <SettingItem 
+                        icon={theme === 'dark' ? Moon : Sun} 
+                        label="Dark Mode" 
+                        value={theme === 'dark'} 
+                        onToggle={handleThemeSwitch} 
+                    />
+                    <SettingItem 
+                        icon={Bell} 
+                        label="Notifications" 
+                        value={isNotificationsEnabled} 
+                        onToggle={handleNotificationSwitch} 
                     />
                 </View>
-            </View>
 
-            <View style={styles.settingsSection}>
-                {/* Notification Switch */}
-                <View style={[styles.settingInputContainer, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                    <View style={styles.settingRow}>
-                        <Text style={[styles.settingLabel, { color: colors.textPrimary }]}>Notifications</Text>
-                        <Switch
-                            trackColor={{ false: colors.textSecondary, true: colors.accentOrange }}
-                            thumbColor={colors.card}
-                            onValueChange={handleNotificationSwitch}
-                            value={isNotificationsEnabled} // Use global state
-                        />
-                    </View>
+                {/* Account Section */}
+                <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Account</Text>
+                <View style={[styles.settingsContainer, { backgroundColor: colors.card }]}>
+                    <TouchableOpacity style={styles.logoutButton} onPress={handleLogoutPress}>
+                        <View style={styles.settingLeft}>
+                            <View style={[styles.iconContainer, { backgroundColor: colors.cancelRed + '15' }]}>
+                                <LogOut size={20} color={colors.cancelRed} />
+                            </View>
+                            <Text style={[styles.settingLabel, { color: colors.cancelRed }]}>Log Out</Text>
+                        </View>
+                    </TouchableOpacity>
                 </View>
-            </View>
 
-            {/* --- Inline Toast Message --- */}
+                <View style={styles.footer}>
+                    <Text style={[styles.versionText, { color: colors.textSecondary }]}>App Version 1.0.0</Text>
+                </View>
+
+            </ScrollView>
+
+            {/* Toast */}
             {toastMessage && (
                 <Animated.View style={[
                     styles.toastContainer, 
-                    { opacity: fadeAnim, backgroundColor: colors.card, borderColor: colors.accentOrange }
+                    { opacity: fadeAnim, backgroundColor: colors.card, borderColor: colors.border }
                 ]}>
-                    <Text style={[styles.toastText, { color: colors.accentOrange }]}>{toastMessage}</Text>
+                    <Text style={[styles.toastText, { color: colors.textPrimary }]}>{toastMessage}</Text>
                 </Animated.View>
             )}
 
-            <View style={styles.logoutWrapper}>
-                <TouchableOpacity style={[styles.logoutButton, { backgroundColor: colors.progressRed }]} onPress={handleLogoutPress}>
-                    <LogOut size={20} color={'white'} style={{ marginRight: 8 }} />
-                    <Text style={styles.logoutButtonText}>Logout</Text>
-                </TouchableOpacity>
-            </View>
-
-            {/* Custom Alert Component */}
             <CustomAlert 
                 visible={alertConfig.visible}
                 title={alertConfig.title}
@@ -187,41 +198,150 @@ const ProfileScreen = ({ user, onLogout }) => {
 };
 
 const styles = StyleSheet.create({
-    container: { flex: 1, paddingHorizontal: 15 },
-    header: { flexDirection: 'row', justifyContent: 'center', paddingTop: 10, marginBottom: 20 },
-    titleText: { fontSize: 28, fontWeight: 'bold' },
-    profileCard: { 
-        borderRadius: 20, 
-        padding: 20, 
-        alignItems: 'center', 
-        marginBottom: 30, 
-        position: 'relative',
-        // Shadow props for iOS
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.1,
-        shadowRadius: 10,
-        // Elevation for Android
-        elevation: 5,
+    container: {
+        flex: 1,
     },
-    avatarContainer: { width: 80, height: 80, borderRadius: 40, justifyContent: 'center', alignItems: 'center', marginBottom: 10 },
-    avatar: { width: 80, height: 80, borderRadius: 40 },
-    userNameText: { fontSize: 22, fontWeight: 'bold', marginTop: 5 },
-    settingsSection: { flex: 1 },
-    settingRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', width: '100%' },
-    settingLabel: { fontSize: 16 },
-    settingInputContainer: { borderRadius: 8, padding: 15, marginBottom: 15, borderWidth: 1 },
-    logoutButton: { borderRadius: 10, padding: 15, alignItems: 'center', flexDirection: 'row', justifyContent: 'center' },
-    logoutButtonText: { color: 'white', fontSize: 18, fontWeight: 'bold' },
-    // Toast Styles
-    toastContainer: {
-        marginBottom: 15,
-        paddingVertical: 10,
+    scrollContent: {
         paddingHorizontal: 20,
-        borderRadius: 20,
+        paddingBottom: 40,
+    },
+    headerTitle: {
+        fontSize: 28,
+        fontWeight: 'bold',
+        marginBottom: 20,
+        marginTop: 10,
+    },
+    // Profile Card
+    profileCard: {
+        borderRadius: 24,
+        padding: 24,
+        marginBottom: 30,
+        shadowColor: '#FF9500',
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.25,
+        shadowRadius: 15,
+        elevation: 8,
+    },
+    profileHeader: {
+        flexDirection: 'row',
         alignItems: 'center',
+    },
+    avatarWrapper: {
+        position: 'relative',
+        marginRight: 20,
+    },
+    avatar: {
+        width: 70,
+        height: 70,
+        borderRadius: 35,
+        borderWidth: 3,
+        borderColor: 'rgba(255,255,255,0.3)',
+    },
+    avatarPlaceholder: {
+        width: 70,
+        height: 70,
+        borderRadius: 35,
         justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 3,
+        borderColor: 'rgba(255,255,255,0.3)',
+    },
+    editBadge: {
+        position: 'absolute',
+        bottom: 0,
+        right: 0,
+        padding: 6,
+        borderRadius: 12,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.2,
+        shadowRadius: 3,
+        elevation: 3,
+    },
+    userInfo: {
+        flex: 1,
+    },
+    userName: {
+        fontSize: 22,
+        fontWeight: 'bold',
+        color: '#FFF',
+        marginBottom: 4,
+    },
+    emailContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    userEmail: {
+        fontSize: 14,
+        color: 'rgba(255,255,255,0.9)',
+    },
+    
+    // Settings
+    sectionTitle: {
+        fontSize: 14,
+        fontWeight: '600',
+        marginBottom: 10,
+        marginLeft: 5,
+        textTransform: 'uppercase',
+        letterSpacing: 1,
+    },
+    settingsContainer: {
+        borderRadius: 16,
+        overflow: 'hidden',
+        marginBottom: 25,
+    },
+    settingItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingVertical: 16,
+        paddingHorizontal: 16,
+        borderBottomWidth: 1,
+    },
+    settingLeft: {
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    iconContainer: {
+        width: 36,
+        height: 36,
+        borderRadius: 10,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: 12,
+    },
+    settingLabel: {
+        fontSize: 16,
+        fontWeight: '500',
+    },
+    logoutButton: {
+        paddingVertical: 16,
+        paddingHorizontal: 16,
+    },
+    
+    // Footer
+    footer: {
+        alignItems: 'center',
+        marginTop: 10,
+    },
+    versionText: {
+        fontSize: 12,
+    },
+
+    // Toast
+    toastContainer: {
+        position: 'absolute',
+        bottom: 50,
         alignSelf: 'center',
+        paddingVertical: 12,
+        paddingHorizontal: 24,
+        borderRadius: 30,
         borderWidth: 1,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+        elevation: 5,
     },
     toastText: {
         fontSize: 14,

@@ -1,22 +1,19 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, Dimensions, FlatList } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { TaskCard } from '../components/TaskCard';
 import { useSQLiteContext } from 'expo-sqlite';
 import { getRepeatingTasksInDateRange, updateTaskStatus, deleteTask } from '../services/Database';
 import { useIsFocused } from '@react-navigation/native';
 import EditScreen from './EditScreen';
-import { Plus, CalendarCheck, ChevronLeft, ChevronRight } from 'lucide-react-native';
+import { Plus, ChevronLeft, ChevronRight, CalendarDays, AlertCircle, BookOpen, Clock, Calendar, Briefcase } from 'lucide-react-native';
 import { useTheme } from '../context/ThemeContext';
+import { LinearGradient } from 'expo-linear-gradient';
 import CustomAlert from '../components/CustomAlert';
 
-// --- Utility Function to get Current Day Name (e.g., MON, TUE) ---
-const getCurrentDayName = (date) => {
-    const options = { weekday: 'short' };
-    const dayName = date.toLocaleDateString('en-US', options);
-    return dayName.toUpperCase();
-};
+const { width } = Dimensions.get('window');
 
+// --- Utility Functions ---
 const formatDate = (date) => {
     const year = date.getFullYear();
     const month = (date.getMonth() + 1).toString().padStart(2, '0');
@@ -24,18 +21,11 @@ const formatDate = (date) => {
     return `${year}-${month}-${day}`;
 };
 
-// --- Utility Function to convert 12-hour time to 24-hour time ---
 const convertTo24HourFormat = (time12h) => {
   const [time, modifier] = time12h.split(' ');
   let [hours, minutes] = time.split(':');
-
-  if (hours === '12') {
-    hours = '00';
-  }
-
-  if (modifier === 'PM') {
-    hours = parseInt(hours, 10) + 12;
-  }
+  if (hours === '12') hours = '00';
+  if (modifier === 'PM') hours = parseInt(hours, 10) + 12;
   return `${hours}:${minutes}`;
 };
 
@@ -71,13 +61,17 @@ const PlannerScreen = ({ navigation, user }) => {
         if (user?.id) {
             try {
                 const dateString = formatDate(currentDate);
-                
-                // Fetch all tasks and schedules for the current date, including repeating ones
                 const allTodayTasks = await getRepeatingTasksInDateRange(db, user.id, dateString, dateString);
                 
-                // Separate tasks and schedules
                 const fetchedTasks = allTodayTasks.filter(t => t.type === 'Task');
                 const fetchedSchedules = allTodayTasks.filter(t => t.type !== 'Task');
+
+                // Sort schedules by time
+                fetchedSchedules.sort((a, b) => {
+                    const timeA = convertTo24HourFormat(a.time);
+                    const timeB = convertTo24HourFormat(b.time);
+                    return timeA.localeCompare(timeB);
+                });
 
                 setTasks(fetchedTasks);
                 setSchedules(fetchedSchedules);
@@ -93,7 +87,6 @@ const PlannerScreen = ({ navigation, user }) => {
         }
     }, [isFocused, fetchTasksAndSchedules]);
 
-    // Handler for Add button press
     const handleAddPress = () => {
         navigation?.navigate('Add', { user: user });
     }
@@ -111,10 +104,9 @@ const PlannerScreen = ({ navigation, user }) => {
 
     const handleDone = async (taskId) => {
         try {
-          // The ID of a repeating task instance is a string, so we need to extract the original ID
           const originalTaskId = typeof taskId === 'string' ? parseInt(taskId.split('-')[0], 10) : taskId;
           await updateTaskStatus(db, originalTaskId, 'done');
-          fetchTasksAndSchedules(); // Refreshes the list
+          fetchTasksAndSchedules();
         } catch (error) {
           console.error("Failed to update task status in PlannerScreen:", error);
         }
@@ -122,7 +114,6 @@ const PlannerScreen = ({ navigation, user }) => {
 
     const executeDeleteTask = async (taskId) => {
         try {
-            // Handle repeating task IDs which are like "12-2023-10-25"
             const originalTaskId = typeof taskId === 'string' ? parseInt(taskId.split('-')[0], 10) : taskId;
             await deleteTask(db, originalTaskId);
             fetchTasksAndSchedules();
@@ -139,13 +130,7 @@ const PlannerScreen = ({ navigation, user }) => {
             'info',
             [
                 { text: 'Cancel', style: 'cancel', onPress: closeAlert },
-                { 
-                    text: 'Delete', 
-                    onPress: () => {
-                        closeAlert();
-                        executeDeleteTask(taskId);
-                    } 
-                }
+                { text: 'Delete', onPress: () => { closeAlert(); executeDeleteTask(taskId); } }
             ]
         );
     };
@@ -162,103 +147,176 @@ const PlannerScreen = ({ navigation, user }) => {
         setCurrentDate(newDate);
     };
 
+    // --- Components ---
 
-    // Helper component for the view selection tabs
-    const ViewTab = ({ icon: Icon, text, viewName }) => (
-        <TouchableOpacity
-            style={[styles.viewTab, { borderBottomColor: colors.accentOrange }]}
-            onPress={() => setActiveView(viewName)}
-        >
-            {Icon && <Icon size={20} color={activeView === viewName ? colors.textPrimary : colors.textSecondary} />}
-            <Text
-                style={[
-                    styles.viewTabText,
-                    { color: colors.textSecondary },
-                    activeView === viewName && [styles.viewTabTextActive, { color: colors.textPrimary }]
-                ]}
-            >
-                {text}
-            </Text>
-            {/* The orange underline effect */}
-            {activeView === viewName && <View style={[styles.tabUnderline, { backgroundColor: colors.accentOrange }]} />}
-        </TouchableOpacity>
+    const DateHeader = () => (
+        <View style={styles.headerContainer}>
+            <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>My Planner</Text>
+            <View style={[styles.dateNavigator, { backgroundColor: colors.card }]}>
+                <TouchableOpacity onPress={goToPreviousDay} style={styles.navButton}>
+                    <ChevronLeft size={22} color={colors.textSecondary} />
+                </TouchableOpacity>
+                <View style={styles.dateDisplay}>
+                    <CalendarDays size={16} color={colors.accentOrange} style={{ marginRight: 6 }} />
+                    <Text style={[styles.dateText, { color: colors.textPrimary }]}>
+                        {currentDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                    </Text>
+                </View>
+                <TouchableOpacity onPress={goToNextDay} style={styles.navButton}>
+                    <ChevronRight size={22} color={colors.textSecondary} />
+                </TouchableOpacity>
+            </View>
+        </View>
     );
+
+    const ViewTab = ({ text, viewName }) => {
+        const isActive = activeView === viewName;
+        return (
+            <TouchableOpacity
+                style={[
+                    styles.viewTab, 
+                    isActive ? { backgroundColor: colors.accentOrange } : { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }
+                ]}
+                onPress={() => setActiveView(viewName)}
+            >
+                <Text
+                    style={[
+                        styles.viewTabText,
+                        { color: isActive ? '#FFF' : colors.textSecondary },
+                    ]}
+                >
+                    {text}
+                </Text>
+            </TouchableOpacity>
+        );
+    };
+
+    const renderTimelineSchedule = () => {
+        if (schedules.length === 0) {
+            return (
+                <View style={styles.emptyTasks}>
+                    <Calendar size={48} color={colors.textSecondary} style={{ marginBottom: 10, opacity: 0.3 }} />
+                    <Text style={[styles.emptyText, { color: colors.textSecondary }]}>No schedule for this day.</Text>
+                </View>
+            );
+        }
+
+        return schedules.map((task, index) => {
+            const time24 = convertTo24HourFormat(task.time);
+            const deadline = `${task.date}T${time24}:00`;
+            const isLast = index === schedules.length - 1;
+
+            return (
+                <View key={task.id.toString()} style={styles.timelineRow}>
+                    {/* Time Column */}
+                    <View style={styles.timeColumn}>
+                        <Text style={[styles.timeText, { color: colors.textPrimary }]}>
+                            {task.time.split(' ')[0]}
+                        </Text>
+                        <Text style={[styles.ampmText, { color: colors.textSecondary }]}>
+                            {task.time.split(' ')[1]}
+                        </Text>
+                    </View>
+
+                    {/* Timeline Line & Dot */}
+                    <View style={styles.timelineGraphics}>
+                        <View style={[styles.timelineDot, { borderColor: colors.accentOrange, backgroundColor: colors.background }]} />
+                        {!isLast && <View style={[styles.timelineLine, { backgroundColor: colors.border }]} />}
+                    </View>
+
+                    {/* Content Column */}
+                    <View style={styles.contentColumn}>
+                        <TaskCard {...task} deadline={deadline} onDone={handleDone} onEdit={handleEdit} onDelete={handleDelete} />
+                    </View>
+                </View>
+            );
+        });
+    };
 
     return (
         <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'left', 'right']}>
-            {/* Header Section (Optimized for button visibility) */}
-            <View style={styles.header}>
-                <TouchableOpacity onPress={goToPreviousDay}>
-                    <ChevronLeft size={28} color={colors.textPrimary} />
-                </TouchableOpacity>
-                <Text style={[styles.titleText, { color: colors.textPrimary }]}>{currentDate.toDateString()}</Text>
-                <TouchableOpacity onPress={goToNextDay}>
-                    <ChevronRight size={28} color={colors.textPrimary} />
-                </TouchableOpacity>
+            
+            <DateHeader />
+
+            {/* Gradient Day Summary Card */}
+            <LinearGradient
+                colors={[colors.purpleAccent, colors.blueAccent]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.summaryCard}
+            >
+                <View style={styles.summaryHeader}>
+                    <View>
+                        <Text style={styles.summaryDayName}>{currentDate.toLocaleDateString('en-US', { weekday: 'long' })}</Text>
+                        <Text style={styles.summaryFullDate}>{currentDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</Text>
+                    </View>
+                    <View style={styles.summaryIcon}>
+                        <Briefcase size={24} color="#FFF" style={{ opacity: 0.8 }} />
+                    </View>
+                </View>
+                
+                <View style={styles.summaryStats}>
+                    <View style={styles.statItem}>
+                        <Text style={styles.statNumber}>{schedules.length}</Text>
+                        <Text style={styles.statLabel}>Events</Text>
+                    </View>
+                    <View style={styles.statDivider} />
+                    <View style={styles.statItem}>
+                        <Text style={styles.statNumber}>{tasks.length}</Text>
+                        <Text style={styles.statLabel}>Tasks</Text>
+                    </View>
+                    <View style={styles.statDivider} />
+                    <View style={styles.statItem}>
+                        <Text style={styles.statNumber}>
+                            {tasks.filter(t => t.status === 'done').length}
+                        </Text>
+                        <Text style={styles.statLabel}>Done</Text>
+                    </View>
+                </View>
+            </LinearGradient>
+
+            {/* View Toggle Tabs */}
+            <View style={styles.viewTabsWrapper}>
+                <ViewTab text="Timeline Schedule" viewName="Schedule" />
+                <ViewTab text={`Tasks (${tasks.length})`} viewName="Tasks" />
             </View>
 
-            {/* Schedule/Tasks Tabs */}
-            <View style={styles.viewTabsContainer}>
-                <ViewTab icon={CalendarCheck} text="Schedule" viewName="Schedule" />
-                <ViewTab text="Tasks" viewName="Tasks" />
-            </View>
-
-            {/* Quick Stats/Indicators Card */}
-            <View style={[styles.statsCard, { backgroundColor: colors.card }]}>
-                <View style={styles.statItem}>
-                    <Text style={[styles.statValue, { color: colors.progressRed }]}>{tasks.length}</Text>
-                    <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Urgent Tasks</Text>
-                </View>
-                <View style={[styles.verticalSeparator, { backgroundColor: colors.textSecondary }]} />
-                <View style={styles.statItem}>
-                    <Text style={[styles.statValue, { color: colors.accentOrange }]}>{schedules.length}</Text>
-                    <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Classes Today</Text>
-                </View>
-                <View style={[styles.verticalSeparator, { backgroundColor: colors.textSecondary }]} />
-                {/* Dynamic Day Indicator */}
-                <View style={styles.statItem}>
-                    <Text style={[styles.dayText, { color: colors.greenAccent }]}>{getCurrentDayName(currentDate)}</Text>
-                </View>
-            </View>
-
-
-            {/* Task List - Uses ScrollView for content scrolling */}
+            {/* Content Scroll */}
             <ScrollView
                 contentContainerStyle={styles.scrollContent}
                 showsVerticalScrollIndicator={false}
             >
-                {/* Conditionally render content based on activeView */}
                 {activeView === 'Schedule' ? (
-                    schedules.length > 0 ? (
-                        schedules.map(task => {
-                            const time24 = convertTo24HourFormat(task.time);
-                            const deadline = `${task.date}T${time24}:00`;
-                            return <TaskCard key={task.id.toString()} {...task} deadline={deadline} onDone={handleDone} onEdit={handleEdit} onDelete={handleDelete} />;
-                        })
-                    ) : (
-                        <View style={styles.emptyTasks}>
-                            <Text style={[styles.emptyText, { color: colors.textPrimary }]}>No schedules to display.</Text>
-                        </View>
-                    )
+                    <View style={styles.timelineContainer}>
+                        {renderTimelineSchedule()}
+                    </View>
                 ) : (
-                    tasks.length > 0 ? (
-                        tasks.map(task => {
-                            const time24 = convertTo24HourFormat(task.time);
-                            const deadline = `${task.date}T${time24}:00`;
-                            return <TaskCard key={task.id.toString()} {...task} deadline={deadline} onDone={handleDone} onEdit={handleEdit} onDelete={handleDelete} />;
-                        })
-                    ) : (
-                        <View style={styles.emptyTasks}>
-                            <Text style={[styles.emptyText, { color: colors.textPrimary }]}>No tasks to display.</Text>
-                        </View>
-                    )
+                    <View style={styles.taskListContainer}>
+                        {tasks.length > 0 ? (
+                            tasks.map(task => {
+                                const time24 = convertTo24HourFormat(task.time);
+                                const deadline = `${task.date}T${time24}:00`;
+                                return <TaskCard key={task.id.toString()} {...task} deadline={deadline} onDone={handleDone} onEdit={handleEdit} onDelete={handleDelete} />;
+                            })
+                        ) : (
+                            <View style={styles.emptyTasks}>
+                                <Clock size={48} color={colors.textSecondary} style={{ marginBottom: 10, opacity: 0.3 }} />
+                                <Text style={[styles.emptyText, { color: colors.textSecondary }]}>No pending tasks for today.</Text>
+                            </View>
+                        )}
+                    </View>
                 )}
-
+                {/* Spacer for FAB */}
+                <View style={{ height: 80 }} />
             </ScrollView>
 
-            {/* Floating Action Button (FAB) for adding tasks */}
-            <TouchableOpacity style={[styles.floatingActionButton, { backgroundColor: colors.accentOrange, shadowColor: colors.accentOrange }]} onPress={handleAddPress}>
-                <Plus size={30} color={colors.card} />
+            {/* FAB */}
+            <TouchableOpacity 
+                style={[styles.floatingActionButton, { backgroundColor: colors.accentOrange, shadowColor: colors.accentOrange }]} 
+                onPress={handleAddPress}
+                activeOpacity={0.8}
+            >
+                <Plus size={32} color="#FFF" />
             </TouchableOpacity>
 
             <Modal
@@ -287,116 +345,205 @@ const PlannerScreen = ({ navigation, user }) => {
     );
 };
 
-// --- Styles ---
 const styles = StyleSheet.create({
     container: {
         flex: 1,
         paddingHorizontal: 15,
     },
-    scrollContent: {
-        // paddingBottom: 20, // Removed to reduce space
-    },
-
-    // --- Header Styles ---
-    header: {
+    // Header
+    headerContainer: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        paddingTop: 15,
-        marginBottom: 10,
+        marginBottom: 20,
+        paddingTop: 10,
     },
-    titleText: {
-        fontSize: 25,
+    headerTitle: {
+        fontSize: 24,
         fontWeight: 'bold',
     },
-    // Polished Add Button Style
-    floatingActionButton: {
-      position: 'absolute',
-      right: 25,
-      bottom: 25,
-      width: 60,
-      height: 60,
-      borderRadius: 30,
-      justifyContent: 'center',
-      alignItems: 'center',
-      shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.3,
-      shadowRadius: 4,
-      elevation: 8,
-    },
-
-    // --- View Tabs Styles (Unchanged) ---
-    viewTabsContainer: {
-        flexDirection: 'row',
-        justifyContent: 'flex-start',
-        marginBottom: 20,
-    },
-    viewTab: {
+    dateNavigator: {
         flexDirection: 'row',
         alignItems: 'center',
-        paddingVertical: 10,
+        borderRadius: 20,
+        padding: 4,
+        // Shadow
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 4,
+        elevation: 2,
+    },
+    navButton: {
+        padding: 6,
+    },
+    dateDisplay: {
+        flexDirection: 'row',
+        alignItems: 'center',
         paddingHorizontal: 10,
-        marginRight: 20,
-        position: 'relative',
     },
-    viewTabText: {
-        fontSize: 16,
-        fontWeight: '500',
-        marginLeft: 5,
-    },
-    viewTabTextActive: {
-        fontWeight: 'bold',
-    },
-    tabUnderline: {
-        position: 'absolute',
-        bottom: 0,
-        left: 0,
-        right: 0,
-        height: 3,
-        borderRadius: 2,
+    dateText: {
+        fontSize: 14,
+        fontWeight: '600',
     },
 
-    // --- Quick Stats Card Styles (Unchanged) ---
-    statsCard: {
+    // Gradient Summary Card
+    summaryCard: {
+        borderRadius: 24,
+        padding: 20,
+        marginBottom: 25,
+        shadowColor: '#5F50A9',
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.3,
+        shadowRadius: 15,
+        elevation: 8,
+    },
+    summaryHeader: {
         flexDirection: 'row',
         justifyContent: 'space-between',
-        alignItems: 'center',
-        borderRadius: 15,
-        padding: 20,
+        alignItems: 'flex-start',
         marginBottom: 20,
+    },
+    summaryDayName: {
+        color: '#FFF',
+        fontSize: 28,
+        fontWeight: 'bold',
+    },
+    summaryFullDate: {
+        color: 'rgba(255,255,255,0.9)',
+        fontSize: 14,
+        fontWeight: '500',
+        marginTop: 2,
+    },
+    summaryIcon: {
+        backgroundColor: 'rgba(255,255,255,0.2)',
+        borderRadius: 12,
+        padding: 8,
+    },
+    summaryStats: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        backgroundColor: 'rgba(0,0,0,0.1)',
+        borderRadius: 16,
+        paddingVertical: 12,
+        paddingHorizontal: 20,
     },
     statItem: {
         alignItems: 'center',
         flex: 1,
     },
-    statValue: {
-        fontSize: 28,
+    statNumber: {
+        color: '#FFF',
+        fontSize: 20,
         fontWeight: 'bold',
-        marginBottom: 2,
     },
     statLabel: {
-        fontSize: 14,
+        color: 'rgba(255,255,255,0.8)',
+        fontSize: 12,
+        marginTop: 2,
     },
-    verticalSeparator: {
+    statDivider: {
         width: 1,
-        height: '70%',
-        opacity: 0.2,
-    },
-    dayText: {
-        fontSize: 28,
-        fontWeight: 'bold',
+        height: '100%',
+        backgroundColor: 'rgba(255,255,255,0.2)',
     },
 
-    // --- Empty State Styles (Unchanged) ---
+    // Tabs
+    viewTabsWrapper: {
+        flexDirection: 'row',
+        marginBottom: 20,
+        gap: 12,
+    },
+    viewTab: {
+        flex: 1,
+        paddingVertical: 12,
+        borderRadius: 30, // Pill shape
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    viewTabText: {
+        fontSize: 14,
+        fontWeight: '600',
+    },
+
+    // Timeline
+    timelineContainer: {
+        paddingLeft: 5,
+    },
+    timelineRow: {
+        flexDirection: 'row',
+        minHeight: 100,
+    },
+    timeColumn: {
+        width: 60,
+        alignItems: 'flex-end',
+        paddingRight: 10,
+        paddingTop: 10,
+    },
+    timeText: {
+        fontSize: 16,
+        fontWeight: 'bold',
+    },
+    ampmText: {
+        fontSize: 12,
+        marginTop: 2,
+    },
+    timelineGraphics: {
+        width: 20,
+        alignItems: 'center',
+    },
+    timelineDot: {
+        width: 12,
+        height: 12,
+        borderRadius: 6,
+        borderWidth: 3,
+        marginTop: 15,
+        zIndex: 2,
+    },
+    timelineLine: {
+        width: 2,
+        flex: 1,
+        position: 'absolute',
+        top: 20, 
+        bottom: -20,
+    },
+    contentColumn: {
+        flex: 1,
+        paddingBottom: 10,
+        paddingLeft: 5,
+    },
+    
+    // Task List Container
+    taskListContainer: {
+        paddingTop: 5,
+    },
+
+    // Common
+    scrollContent: {
+        paddingBottom: 20,
+    },
     emptyTasks: {
-        paddingVertical: 50,
+        paddingVertical: 60,
         alignItems: 'center',
         justifyContent: 'center',
     },
     emptyText: {
-        fontSize: 18,
-        fontWeight: '600',
-        marginBottom: 5,
+        fontSize: 16,
+        fontWeight: '500',
+    },
+    floatingActionButton: {
+        position: 'absolute',
+        bottom: 110,
+    right: 20,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+        justifyContent: 'center',
+        alignItems: 'center',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 5,
+        elevation: 8,
     },
 });
 

@@ -1,21 +1,57 @@
-import React from 'react';
-import { Modal, View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import React, { useEffect, useState, useRef } from 'react';
+import { Modal, View, Text, TouchableOpacity, StyleSheet, Animated, Dimensions } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
-// Ensure lucide-react-native is installed, or replace these with Ionicons if needed
-import { X, CheckCircle, AlertCircle, Info } from 'lucide-react-native';
+import { CheckCircle2, AlertCircle, Info, X } from 'lucide-react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+
+const { width } = Dimensions.get('window');
 
 const CustomAlert = ({ visible, title, message, type = 'info', buttons, onClose }) => {
-    // Hook to access the current theme colors
     const { colors } = useTheme();
+    const scaleAnim = useRef(new Animated.Value(0.8)).current;
+    const opacityAnim = useRef(new Animated.Value(0)).current;
+
+    useEffect(() => {
+        if (visible) {
+            Animated.parallel([
+                Animated.spring(scaleAnim, {
+                    toValue: 1,
+                    friction: 6,
+                    tension: 50,
+                    useNativeDriver: true,
+                }),
+                Animated.timing(opacityAnim, {
+                    toValue: 1,
+                    duration: 200,
+                    useNativeDriver: true,
+                }),
+            ]).start();
+        } else {
+            Animated.timing(opacityAnim, {
+                toValue: 0,
+                duration: 150,
+                useNativeDriver: true,
+            }).start(() => scaleAnim.setValue(0.8));
+        }
+    }, [visible]);
 
     if (!visible) return null;
 
-    // Helper to select the icon based on alert type
+    // Icon helper
     const getIcon = () => {
         switch (type) {
-            case 'success': return <CheckCircle size={48} color={colors.greenAccent} />;
-            case 'error': return <AlertCircle size={48} color={colors.cancelRed} />;
-            default: return <Info size={48} color={colors.accentOrange} />;
+            case 'success': return <CheckCircle2 size={40} color={colors.greenAccent} />;
+            case 'error': return <AlertCircle size={40} color={colors.cancelRed} />;
+            default: return <Info size={40} color={colors.accentOrange} />;
+        }
+    };
+
+    // Header Color helper (for subtle top border/accent)
+    const getHeaderColor = () => {
+        switch (type) {
+            case 'success': return colors.greenAccent;
+            case 'error': return colors.cancelRed;
+            default: return colors.accentOrange;
         }
     };
 
@@ -23,55 +59,83 @@ const CustomAlert = ({ visible, title, message, type = 'info', buttons, onClose 
         <Modal
             transparent={true}
             visible={visible}
-            animationType="fade"
+            animationType="none"
             onRequestClose={onClose}
         >
             <View style={styles.overlay}>
-                <View style={[
-                    styles.alertContainer, 
-                    { 
-                        backgroundColor: colors.card, 
-                        borderColor: colors.border,
-                        shadowColor: colors.textPrimary 
-                    }
-                ]}>
-                    <View style={styles.iconContainer}>
-                        {getIcon()}
-                    </View>
-                    <Text style={[styles.title, { color: colors.textPrimary }]}>{title}</Text>
-                    <Text style={[styles.message, { color: colors.textSecondary }]}>{message}</Text>
-                    
-                    <View style={styles.buttonContainer}>
-                        {buttons && buttons.length > 0 ? (
-                            buttons.map((btn, index) => (
+                <Animated.View 
+                    style={[
+                        styles.alertContainer, 
+                        { 
+                            backgroundColor: colors.card, 
+                            opacity: opacityAnim,
+                            transform: [{ scale: scaleAnim }],
+                            shadowColor: getHeaderColor(), // Dynamic shadow color
+                        }
+                    ]}
+                >
+                    {/* Decorative Top Line */}
+                    <View style={[styles.topAccent, { backgroundColor: getHeaderColor() }]} />
+
+                    <View style={styles.content}>
+                        <View style={[styles.iconWrapper, { backgroundColor: getHeaderColor() + '15' }]}>
+                            {getIcon()}
+                        </View>
+
+                        <Text style={[styles.title, { color: colors.textPrimary }]}>{title}</Text>
+                        <Text style={[styles.message, { color: colors.textSecondary }]}>{message}</Text>
+                        
+                        <View style={styles.buttonContainer}>
+                            {buttons && buttons.length > 0 ? (
+                                buttons.map((btn, index) => {
+                                    const isPrimary = btn.style !== 'cancel';
+                                    return (
+                                        <TouchableOpacity 
+                                            key={index} 
+                                            activeOpacity={0.8}
+                                            style={styles.buttonWrapper}
+                                            onPress={() => {
+                                                if (btn.onPress) btn.onPress();
+                                                else onClose();
+                                            }}
+                                        >
+                                            {isPrimary ? (
+                                                <LinearGradient
+                                                    colors={btn.style === 'destructive' ? [colors.cancelRed, '#FF6B6B'] : [colors.accentOrange, colors.progressRed]}
+                                                    start={{ x: 0, y: 0 }}
+                                                    end={{ x: 1, y: 0 }}
+                                                    style={styles.gradientButton}
+                                                >
+                                                    <Text style={[styles.buttonText, { color: '#fff' }]}>{btn.text}</Text>
+                                                </LinearGradient>
+                                            ) : (
+                                                <View style={[styles.outlineButton, { borderColor: colors.border }]}>
+                                                    <Text style={[styles.buttonText, { color: colors.textSecondary }]}>{btn.text}</Text>
+                                                </View>
+                                            )}
+                                        </TouchableOpacity>
+                                    );
+                                })
+                            ) : (
+                                // Default OK button
                                 <TouchableOpacity 
-                                    key={index} 
-                                    style={[
-                                        styles.button, 
-                                        { backgroundColor: btn.style === 'cancel' ? colors.cancelRed : colors.accentOrange }
-                                    ]}
-                                    onPress={() => {
-                                        if (btn.onPress) {
-                                            btn.onPress();
-                                        } else {
-                                            onClose();
-                                        }
-                                    }}
+                                    activeOpacity={0.8}
+                                    style={styles.buttonWrapper}
+                                    onPress={onClose}
                                 >
-                                    <Text style={[styles.buttonText, { color: '#fff' }]}>{btn.text}</Text>
+                                    <LinearGradient
+                                        colors={[colors.accentOrange, colors.progressRed]}
+                                        start={{ x: 0, y: 0 }}
+                                        end={{ x: 1, y: 0 }}
+                                        style={styles.gradientButton}
+                                    >
+                                        <Text style={[styles.buttonText, { color: '#fff' }]}>OK</Text>
+                                    </LinearGradient>
                                 </TouchableOpacity>
-                            ))
-                        ) : (
-                            // Default OK button if no buttons provided
-                            <TouchableOpacity 
-                                style={[styles.button, { backgroundColor: colors.accentOrange }]}
-                                onPress={onClose}
-                            >
-                                <Text style={[styles.buttonText, { color: '#fff' }]}>OK</Text>
-                            </TouchableOpacity>
-                        )}
+                            )}
+                        </View>
                     </View>
-                </View>
+                </Animated.View>
             </View>
         </Modal>
     );
@@ -80,34 +144,45 @@ const CustomAlert = ({ visible, title, message, type = 'info', buttons, onClose 
 const styles = StyleSheet.create({
     overlay: {
         flex: 1,
-        backgroundColor: 'rgba(0, 0, 0, 0.6)',
+        backgroundColor: 'rgba(0, 0, 0, 0.65)', // Slightly darker for better focus
         justifyContent: 'center',
         alignItems: 'center',
     },
     alertContainer: {
-        width: '80%',
-        borderRadius: 20,
-        padding: 25,
-        alignItems: 'center',
-        elevation: 10,
+        width: width * 0.85,
+        borderRadius: 24,
+        overflow: 'hidden',
+        elevation: 20,
         // iOS Shadow
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3,
-        shadowRadius: 10,
-        borderWidth: 1,
+        shadowOffset: { width: 0, height: 10 },
+        shadowOpacity: 0.25,
+        shadowRadius: 20,
     },
-    iconContainer: {
-        marginBottom: 15,
+    topAccent: {
+        height: 4,
+        width: '100%',
+    },
+    content: {
+        padding: 24,
+        alignItems: 'center',
+    },
+    iconWrapper: {
+        width: 70,
+        height: 70,
+        borderRadius: 35,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginBottom: 16,
     },
     title: {
         fontSize: 22,
         fontWeight: 'bold',
-        marginBottom: 10,
+        marginBottom: 8,
         textAlign: 'center',
     },
     message: {
         fontSize: 16,
-        marginBottom: 25,
+        marginBottom: 24,
         textAlign: 'center',
         lineHeight: 22,
     },
@@ -115,20 +190,30 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         justifyContent: 'center',
         width: '100%',
-        gap: 15, // Flex gap
-        flexWrap: 'wrap'
+        gap: 12,
+        flexWrap: 'wrap',
     },
-    button: {
-        borderRadius: 12,
-        paddingVertical: 12,
-        paddingHorizontal: 25,
+    buttonWrapper: {
+        flex: 1,
         minWidth: 100,
+    },
+    gradientButton: {
+        borderRadius: 14,
+        paddingVertical: 14,
         alignItems: 'center',
         justifyContent: 'center',
     },
+    outlineButton: {
+        borderRadius: 14,
+        paddingVertical: 13, // Adjust for border width
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderWidth: 1,
+        backgroundColor: 'transparent',
+    },
     buttonText: {
         fontSize: 16,
-        fontWeight: 'bold',
+        fontWeight: '600',
     }
 });
 

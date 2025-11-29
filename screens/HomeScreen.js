@@ -1,13 +1,14 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Image, Modal, TextInput, ActivityIndicator, KeyboardAvoidingView, Platform, Alert, Animated } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Image, Modal, TextInput, ActivityIndicator, KeyboardAvoidingView, Platform, Alert, Animated, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { TaskCard } from '../components/TaskCard';
 import { useSQLiteContext } from 'expo-sqlite';
 import { getAllTasks, getUpcomingTasks, updateTaskStatus, deleteTask } from '../services/Database'; 
 import { useIsFocused } from '@react-navigation/native';
 import { getScheduleRecommendation } from '../services/AiServices';
-import { Bell, BellOff, Sparkles, X } from 'lucide-react-native';
+import { Bell, BellOff, Sparkles, X, ListFilter, CheckCircle2, Circle, Wand2, Calendar } from 'lucide-react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import EditScreen from './EditScreen';
 import { useTheme } from '../context/ThemeContext';
 import CustomAlert from '../components/CustomAlert';
@@ -243,15 +244,24 @@ const HomeScreen = ({ user, navigation }) => {
   };
 
   const completedTasksCount = allTasks.filter(task => task.status === 'done').length;
+  const pendingTasksCount = allTasks.length - completedTasksCount;
   const donePercentage = allTasks.length > 0 ? Math.round((completedTasksCount / allTasks.length) * 100) : 0;
+
+  // Custom Tab Chip Component
+  const TabChip = ({ label, active }) => (
+    <View style={[styles.tabChip, active ? { backgroundColor: colors.accentOrange } : { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }]}>
+        <Text style={[styles.tabChipText, active ? { color: '#FFF' } : { color: colors.textSecondary }]}>{label}</Text>
+    </View>
+  );
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'left', 'right']}>
       <View style={styles.content}>
+        
+        {/* Header */}
         <View style={styles.header}>
-          <View style={styles.userInfo}>
-          <TouchableOpacity onPress={() => navigation.navigate('Profile')}>
-            <View style={styles.avatarContainer}>
+          <TouchableOpacity onPress={() => navigation.navigate('Profile')} style={styles.userInfo}>
+            <View style={[styles.avatarContainer, { borderColor: colors.accentOrange }]}>
               {profilePicture ? (
                 <Image source={{ uri: profilePicture }} style={styles.avatar} />
               ) : (
@@ -260,101 +270,96 @@ const HomeScreen = ({ user, navigation }) => {
                 </View>
               )}
             </View>
-          </TouchableOpacity>
             <View>
-              <Text style={[styles.greetingText, { color: colors.textSecondary }]}>Hey,</Text>
+              <Text style={[styles.greetingText, { color: colors.textSecondary }]}>Welcome back,</Text>
               <Text style={[styles.userNameText, { color: colors.textPrimary }]}>{userName}</Text>
             </View>
-          </View>
+          </TouchableOpacity>
           
-          <View style={styles.actionButtons}>
-              <TouchableOpacity 
-                style={[
-                    styles.headerButton, 
-                    isNotificationsEnabled 
-                        ? { backgroundColor: colors.accentOrange, shadowColor: colors.accentOrange } 
-                        : { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.textSecondary }
-                ]} 
-                onPress={handleNotificationPress}
-              >
-                  {isNotificationsEnabled ? (
-                      <Bell size={24} color={colors.card} />
-                  ) : (
-                      <BellOff size={24} color={colors.textSecondary} />
-                  )}
-              </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* Today's Report Card */}
-        <View style={[styles.reportCard, { backgroundColor: colors.card }]}>
-          <View style={styles.reportHeader}>
-            <Text style={[styles.reportTitle, { color: colors.textPrimary }]}>Today's Report</Text>
-          </View>
-          <View style={styles.reportBody}>
-            <View>
-              <Text style={[styles.reportDateLarge, { color: colors.textPrimary }]}>{dayName}</Text>
-              <Text style={[styles.reportDateSmall, { color: colors.textSecondary }]}>{formattedDate}</Text>
-            </View>
-            <View style={styles.statsContainer}>
-                <View style={styles.statRow}>
-                    <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Tasks</Text>
-                    <Text style={[styles.statValue, { color: colors.textPrimary }]}>{allTasks.length}</Text>
-                </View>
-                <View style={styles.statRow}>
-                    <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Done</Text>
-                    <Text style={[styles.statValue, { color: colors.accentOrange }]}>{donePercentage}%</Text>
-                </View>
-            </View>
-          </View>
-          <View style={styles.reportFooter}>
-              <Text style={[styles.quote, { color: colors.textSecondary }]}>
-                "Focus on being productive instead of busy."
-                <Text style={[styles.quoteAuthor, { color: colors.textSecondary }]}> - Tim Ferriss</Text>
-              </Text>
-          </View>
-        </View>
-
-        {/* List Header with Filter Toggle */}
-        <View style={styles.listHeaderContainer}>
-          <Text style={[styles.listHeaderTitle, { color: colors.textPrimary }]}>
-            {activeFilter === 'Schedule'
-              ? 'My Schedules'
-              : activeFilter === 'All'
-              ? 'Tasks and Schedules'
-              : 'My Tasks'}
-          </Text>
-          <TouchableOpacity onPress={toggleFilterVisibility} style={styles.filterIcon}>
-            <Ionicons name="options-outline" size={24} color={isFilterVisible ? colors.accentOrange : colors.textSecondary} />
+          <TouchableOpacity 
+            style={[styles.notificationButton, { backgroundColor: colors.card }]} 
+            onPress={handleNotificationPress}
+          >
+              {isNotificationsEnabled ? (
+                  <View>
+                    <Bell size={24} color={colors.textPrimary} />
+                    <View style={styles.notificationBadge} />
+                  </View>
+              ) : (
+                  <BellOff size={24} color={colors.textSecondary} />
+              )}
           </TouchableOpacity>
         </View>
 
-        {/* Toggleable Filter Tabs for Task/Schedule */}
-        {isFilterVisible && (
-          <View style={[styles.filterTabsContainer, { borderBottomColor: colors.tabInactive }]}>
-            {['All', 'Task', 'Schedule'].map((filter) => (
-              <TouchableOpacity
-                key={filter}
-                style={[styles.filterTabButton, activeFilter === filter && [styles.filterTabActive, { borderBottomColor: colors.accentOrange }]]}
-                onPress={() => setActiveFilter(filter)}
-              >
-                <Text style={[styles.filterTabText, { color: colors.textSecondary }, activeFilter === filter && [styles.filterTabTextActive, { color: colors.textPrimary }]]}>{filter}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        )}
+        {/* Improved Summary Card with Gradient */}
+        <LinearGradient
+            colors={[colors.accentOrange, colors.progressRed]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.gradientCard}
+        >
+            <View style={styles.cardHeader}>
+                <View>
+                    <Text style={styles.cardDate}>{formattedDate}</Text>
+                    <Text style={styles.cardDay}>{dayName}</Text>
+                </View>
+                <View style={styles.cardIcon}>
+                    <Sparkles size={24} color="#FFF" style={{ opacity: 0.8 }} />
+                </View>
+            </View>
+            
+            <View style={styles.cardStats}>
+                <View style={styles.statItem}>
+                    <Text style={styles.statNumber}>{allTasks.length}</Text>
+                    <Text style={styles.statLabel}>Total Tasks</Text>
+                </View>
+                <View style={styles.statDivider} />
+                <View style={styles.statItem}>
+                    <Text style={styles.statNumber}>{donePercentage}%</Text>
+                    <Text style={styles.statLabel}>Completed</Text>
+                </View>
+                <View style={styles.statDivider} />
+                <View style={styles.statItem}>
+                    <Text style={styles.statNumber}>{pendingTasksCount}</Text>
+                    <Text style={styles.statLabel}>Pending</Text>
+                </View>
+            </View>
+        </LinearGradient>
 
-        {/* Navigation Tabs */}
-        <View style={[styles.tabsContainer, { backgroundColor: colors.background }]}>
-          {['All', 'Today', 'Upcoming', 'Completed'].map((tab) => (
-            <TouchableOpacity
-              key={tab}
-              style={[styles.tabButton, activeTab === tab && [styles.tabActive, { borderBottomColor: colors.accentOrange }]]}
-              onPress={() => setActiveTab(tab)}
-            >
-              <Text style={[styles.tabText, { color: colors.textSecondary }, activeTab === tab && [styles.tabTextActive, { color: colors.textPrimary }]]}>{tab}</Text>
-            </TouchableOpacity>
-          ))}
+        {/* Filter & Tabs Section */}
+        <View style={styles.controlsContainer}>
+            <View style={styles.listHeader}>
+                <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>My Tasks</Text>
+                <TouchableOpacity onPress={toggleFilterVisibility} style={styles.filterButton}>
+                    <ListFilter size={20} color={isFilterVisible ? colors.accentOrange : colors.textSecondary} />
+                </TouchableOpacity>
+            </View>
+
+            {/* Sub-Filters (Task vs Schedule) */}
+            {isFilterVisible && (
+                <View style={styles.subFilterContainer}>
+                    {['All', 'Task', 'Schedule'].map((filter) => (
+                        <TouchableOpacity 
+                            key={filter} 
+                            onPress={() => setActiveFilter(filter)}
+                            style={[styles.subFilterChip, activeFilter === filter && { backgroundColor: colors.accentOrange + '20', borderColor: colors.accentOrange }]}
+                        >
+                            <Text style={[styles.subFilterText, { color: activeFilter === filter ? colors.accentOrange : colors.textSecondary }]}>
+                                {filter}
+                            </Text>
+                        </TouchableOpacity>
+                    ))}
+                </View>
+            )}
+
+            {/* Time Tabs */}
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabsScroll} contentContainerStyle={styles.tabsContent}>
+                {['All', 'Today', 'Upcoming', 'Completed'].map((tab) => (
+                    <TouchableOpacity key={tab} onPress={() => setActiveTab(tab)}>
+                        <TabChip label={tab} active={activeTab === tab} />
+                    </TouchableOpacity>
+                ))}
+            </ScrollView>
         </View>
 
         {/* Task List */}
@@ -370,12 +375,24 @@ const HomeScreen = ({ user, navigation }) => {
           showsVerticalScrollIndicator={false}
           ListEmptyComponent={() => (
             <View style={styles.emptyTasks}>
-              <Text style={[styles.emptyText, { color: colors.textPrimary }]}>No tasks to display.</Text>
+                <CheckCircle2 size={60} color={colors.textSecondary} style={{ opacity: 0.3, marginBottom: 10 }} />
+                <Text style={[styles.emptyText, { color: colors.textSecondary }]}>No tasks found.</Text>
             </View>
           )}
         />
       </View>
 
+      {/* AI Floating Button */}
+      <TouchableOpacity 
+        style={[styles.aiFloatingButton, { backgroundColor: colors.accentOrange, shadowColor: colors.accentOrange }]} 
+        onPress={handleAiButtonPress}
+        activeOpacity={0.8}
+      >
+        <Sparkles size={28} color="#FFF" />
+      </TouchableOpacity>
+
+      {/* --- Modals & Alerts --- */}
+      
       <Modal
         visible={isEditModalVisible}
         animationType="slide"
@@ -389,10 +406,10 @@ const HomeScreen = ({ user, navigation }) => {
         )}
       </Modal>
 
-      {/* --- AI Modal --- */}
+      {/* --- Enhanced AI Bottom Sheet Modal --- */}
       <Modal
         visible={isAiModalVisible}
-        animationType="fade"
+        animationType="slide"
         transparent={true}
         onRequestClose={() => setAiModalVisible(false)}
       >
@@ -400,68 +417,134 @@ const HomeScreen = ({ user, navigation }) => {
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
             style={styles.modalOverlay}
         >
-            <View style={[styles.aiModalContainer, { backgroundColor: colors.card }]}>
+            <TouchableOpacity style={styles.modalBackdrop} activeOpacity={1} onPress={() => setAiModalVisible(false)} />
+            
+            <View style={[styles.aiBottomSheet, { backgroundColor: colors.card }]}>
+                {/* Drag Handle */}
+                <View style={styles.dragHandleContainer}>
+                    <View style={[styles.dragHandle, { backgroundColor: colors.border }]} />
+                </View>
+
+                {/* Header */}
                 <View style={styles.aiModalHeader}>
-                    <View style={styles.aiTitleRow}>
-                        <Sparkles size={24} color={colors.accentOrange} style={{marginRight: 8}}/>
-                        <Text style={[styles.aiModalTitle, { color: colors.textPrimary }]}>Smart AI Assistant</Text>
+                    <View style={[styles.aiIconBadge, { backgroundColor: colors.accentOrange + '15' }]}>
+                        <Wand2 size={24} color={colors.accentOrange} />
                     </View>
-                    <TouchableOpacity onPress={() => setAiModalVisible(false)}>
+                    <View style={styles.aiTitleContainer}>
+                        <Text style={[styles.aiModalTitle, { color: colors.textPrimary }]}>Smart Assistant</Text>
+                        <Text style={[styles.aiModalSubtitle, { color: colors.textSecondary }]}>
+                            {aiResult ? "Here is what I found" : "How can I help you schedule?"}
+                        </Text>
+                    </View>
+                    <TouchableOpacity onPress={() => setAiModalVisible(false)} style={styles.closeButton}>
                         <X size={24} color={colors.textSecondary} />
                     </TouchableOpacity>
                 </View>
 
-                <Text style={[styles.aiInstruction, { color: colors.textSecondary }]}>What do you want to do?</Text>
+                {/* Content Area */}
+                {!aiResult && (
+                    <View style={styles.aiInputWrapper}>
+                        <TextInput 
+                            style={[styles.aiTextInput, { 
+                                backgroundColor: colors.inputBackground, 
+                                color: colors.textPrimary,
+                                borderColor: colors.border
+                            }]}
+                            placeholder="e.g., Schedule a dentist appointment for next Monday at 10 AM..."
+                            placeholderTextColor={colors.textSecondary}
+                            value={aiPrompt}
+                            onChangeText={setAiPrompt}
+                            multiline
+                            textAlignVertical="top"
+                        />
+                        <View style={styles.inputFooter}>
+                            <Text style={[styles.inputHint, { color: colors.textSecondary }]}>
+                                Try mentioning dates, times, or durations.
+                            </Text>
+                        </View>
+                    </View>
+                )}
 
-                <View style={[styles.aiInputContainer, { backgroundColor: colors.inputBackground }]}>
-                    <TextInput 
-                        style={[styles.aiTextInput, { color: colors.textPrimary }]}
-                        placeholder="e.g., I need to study for Math exam..."
-                        placeholderTextColor={colors.textSecondary}
-                        value={aiPrompt}
-                        onChangeText={setAiPrompt}
-                        multiline
-                    />
-                </View>
-
-                {isAiLoading ? (
+                {/* Loading State */}
+                {isAiLoading && (
                     <View style={styles.aiLoadingContainer}>
                         <ActivityIndicator size="large" color={colors.accentOrange} />
-                        <Text style={[styles.aiLoadingText, { color: colors.textSecondary }]}>Analyzing your schedule...</Text>
+                        <Text style={[styles.aiLoadingText, { color: colors.textSecondary }]}>Generating plan...</Text>
                     </View>
-                ) : aiResult ? (
-                    <View style={styles.aiResultContainer}>
-                        <Text style={[styles.aiResultLabel, { color: colors.textPrimary }]}>AI Recommendation:</Text>
-                        <View style={[styles.recommendationCard, { backgroundColor: colors.accentOrange + '20', borderLeftColor: colors.accentOrange }]}>
-                            <Text style={[styles.recommendationTitle, { color: colors.textPrimary }]}>{aiResult.title}</Text>
-                            <Text style={[styles.recommendationDetail, { color: colors.accentOrange }]}>{aiResult.date} at {aiResult.time}</Text>
-                            <Text style={[styles.recommendationReason, { color: colors.textSecondary }]}>{aiResult.reason}</Text>
-                        </View>
-                        <TouchableOpacity style={[styles.addToScheduleButton, { backgroundColor: colors.greenAccent }]} onPress={handleAddRecommendation}>
-                            <Text style={styles.addToScheduleText}>Add to Schedule</Text>
-                        </TouchableOpacity>
-                    </View>
-                ) : (
-                    <TouchableOpacity style={[styles.askAiButton, { backgroundColor: colors.accentOrange }]} onPress={handleAiSubmit}>
-                        <Text style={styles.askAiButtonText}>Ask AI</Text>
-                    </TouchableOpacity>
                 )}
+
+                {/* Result Card */}
+                {aiResult && !isAiLoading && (
+                    <View style={styles.aiResultWrapper}>
+                        <View style={[styles.recommendationCard, { backgroundColor: colors.background, borderColor: colors.accentOrange }]}>
+                            <View style={styles.recommendationHeader}>
+                                <Text style={[styles.recommendationTitle, { color: colors.textPrimary }]}>{aiResult.title}</Text>
+                                <View style={[styles.timeBadge, { backgroundColor: colors.accentOrange }]}>
+                                    <Text style={styles.timeBadgeText}>{aiResult.time}</Text>
+                                </View>
+                            </View>
+                            <View style={styles.recommendationMeta}>
+                                <Text style={[styles.recommendationDate, { color: colors.textSecondary }]}>
+                                    <Calendar size={14} color={colors.textSecondary} /> {aiResult.date}
+                                </Text>
+                            </View>
+                            <View style={styles.divider} />
+                            <Text style={[styles.recommendationReason, { color: colors.textSecondary }]}>
+                                "{aiResult.reason}"
+                            </Text>
+                        </View>
+                    </View>
+                )}
+
+                {/* Actions */}
+                <View style={styles.aiActions}>
+                    {!aiResult && !isAiLoading && (
+                        <TouchableOpacity 
+                            onPress={handleAiSubmit}
+                            activeOpacity={0.8}
+                            style={styles.fullWidthButton}
+                        >
+                            <LinearGradient
+                                colors={[colors.accentOrange, colors.progressRed]}
+                                start={{ x: 0, y: 0 }}
+                                end={{ x: 1, y: 0 }}
+                                style={styles.gradientButton}
+                            >
+                                <Sparkles size={20} color="#FFF" style={{ marginRight: 8 }} />
+                                <Text style={styles.gradientButtonText}>Generate Schedule</Text>
+                            </LinearGradient>
+                        </TouchableOpacity>
+                    )}
+
+                    {aiResult && (
+                        <View style={styles.resultActions}>
+                            <TouchableOpacity 
+                                style={[styles.actionButton, { borderColor: colors.border, borderWidth: 1 }]} 
+                                onPress={() => setAiResult(null)}
+                            >
+                                <Text style={[styles.actionButtonText, { color: colors.textPrimary }]}>Try Again</Text>
+                            </TouchableOpacity>
+                            
+                            <TouchableOpacity 
+                                style={[styles.actionButton, { backgroundColor: colors.greenAccent }]} 
+                                onPress={handleAddRecommendation}
+                            >
+                                <Text style={[styles.actionButtonText, { color: '#FFF' }]}>Add to Planner</Text>
+                            </TouchableOpacity>
+                        </View>
+                    )}
+                </View>
             </View>
         </KeyboardAvoidingView>
       </Modal>
 
-      {/* AI Floating Action Button */}
-      <TouchableOpacity style={[styles.aiButton, { backgroundColor: colors.accentOrange, shadowColor: colors.accentOrange }]} onPress={handleAiButtonPress}>
-        <Sparkles size={30} color={colors.card} />
-      </TouchableOpacity>
-
-      {/* --- Toast Notification --- */}
+      {/* Toast Notification */}
       {toastMessage && (
           <Animated.View style={[
               styles.toastContainer, 
-              { opacity: fadeAnim, backgroundColor: colors.card, borderColor: colors.accentOrange }
+              { opacity: fadeAnim, backgroundColor: colors.card, borderColor: colors.border }
           ]}>
-              <Text style={[styles.toastText, { color: colors.accentOrange }]}>{toastMessage}</Text>
+              <Text style={[styles.toastText, { color: colors.textPrimary }]}>{toastMessage}</Text>
           </Animated.View>
       )}
 
@@ -485,319 +568,404 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    paddingHorizontal: 15,
+    paddingHorizontal: 20,
   },
+  // Header Styles
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingTop: 10,
+    marginTop: 10,
+    marginBottom: 20,
   },
   userInfo: {
     flexDirection: 'row',
     alignItems: 'center',
   },
+  avatarContainer: {
+    marginRight: 12,
+    borderWidth: 2,
+    borderRadius: 25,
+    padding: 2,
+  },
   avatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 10,
-  },
-  avatarContainer: {
-    marginRight: 10,
   },
   avatarText: {
     fontWeight: 'bold',
-    fontSize: 16,
+    fontSize: 18,
   },
   greetingText: {
     fontSize: 14,
-    lineHeight: 16,
+    fontWeight: '500',
   },
   userNameText: {
     fontWeight: 'bold',
-    fontSize: 18,
-    lineHeight: 20,
+    fontSize: 20,
   },
-  actionButtons: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  headerButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+  notificationButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
     justifyContent: 'center',
     alignItems: 'center',
+    // shadow
+    shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.5,
+    shadowOpacity: 0.05,
     shadowRadius: 5,
-    elevation: 5,
+    elevation: 2,
+  },
+  notificationBadge: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: '#FF4500', // red accent
+    borderWidth: 2,
+    borderColor: '#FFF',
   },
 
-  reportCard: {
-    borderRadius: 15,
-    padding: 18,
-    marginTop: 20,
-    marginBottom: 20,
+  // Gradient Card Styles
+  gradientCard: {
+    borderRadius: 24,
+    padding: 20,
+    marginBottom: 25,
+    shadowColor: '#FF9500',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.25,
+    shadowRadius: 15,
+    elevation: 8,
   },
-  reportHeader: {
-    flexDirection: 'row',
-    justifyContent: 'flex-start',
-    marginBottom: 5,
-  },
-  reportTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  reportBody: {
+  cardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 10,
+    marginBottom: 20,
   },
-  reportDateSmall: {
-    fontSize: 16,
+  cardDate: {
+    color: 'rgba(255,255,255,0.9)',
+    fontSize: 14,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
   },
-  reportDateLarge: {
+  cardDay: {
+    color: '#FFF',
     fontSize: 32,
     fontWeight: 'bold',
-    marginBottom: 2,
   },
-  statsContainer: {
-    alignItems: 'flex-end',
-    justifyContent: 'center',
+  cardIcon: {
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    borderRadius: 12,
+    padding: 8,
   },
-  statRow: {
+  cardStats: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    width: 120,
-    marginBottom: 4,
+    backgroundColor: 'rgba(0,0,0,0.1)',
+    borderRadius: 16,
+    padding: 15,
   },
-  statLabel: {
-    fontSize: 16,
-  },
-  statValue: {
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  reportFooter: {},
-  quote: {
-    fontSize: 14,
-    marginTop: 15,
-    lineHeight: 18,
-  },
-  quoteAuthor: {
-      fontSize: 14,
-  },
-
-  listHeaderContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  statItem: {
     alignItems: 'center',
-    marginBottom: 10,
-    paddingHorizontal: 5,
+    flex: 1,
   },
-  listHeaderTitle: {
+  statNumber: {
+    color: '#FFF',
     fontSize: 20,
     fontWeight: 'bold',
   },
-  filterIcon: {
-    padding: 5,
+  statLabel: {
+    color: 'rgba(255,255,255,0.8)',
+    fontSize: 12,
+    marginTop: 2,
+  },
+  statDivider: {
+    width: 1,
+    height: '100%',
+    backgroundColor: 'rgba(255,255,255,0.2)',
   },
 
-  filterTabsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'flex-start',
-    paddingBottom: 5,
-    borderBottomWidth: 2,
+  // Controls Section (Filter & Tabs)
+  controlsContainer: {
+    marginBottom: 15,
   },
-  filterTabButton: {
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    marginRight: 10,
-  },
-  filterTabActive: {
-    borderBottomWidth: 3,
-  },
-  filterTabText: {
-    fontSize: 16,
-    fontWeight: '500',
-  },
-  filterTabTextActive: {
-    fontWeight: 'bold',
-  },
-
-
-  tabsContainer: {
+  listHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 10,
-    paddingVertical: 5,
-  },
-  tabButton: {
-    paddingVertical: 8,
-    paddingHorizontal: 15,
-  },
-  tabActive: {
-      borderBottomWidth: 2,
-  },
-  tabText: {
-    fontSize: 16,
-    fontWeight: '500',
-  },
-  tabTextActive: {
-      fontWeight: 'bold',
-  },
-  taskList: {
-
-  },
-  emptyTasks: {
-    paddingVertical: 50,
     alignItems: 'center',
-    justifyContent: 'center',
+    marginBottom: 12,
   },
-  emptyText: {
-    fontSize: 18,
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+  },
+  filterButton: {
+    padding: 5,
+  },
+  subFilterContainer: {
+    flexDirection: 'row',
+    marginBottom: 12,
+    gap: 10,
+  },
+  subFilterChip: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  subFilterText: {
+    fontSize: 13,
     fontWeight: '600',
+  },
+  tabsScroll: {
     marginBottom: 5,
   },
-  aiButton: {
+  tabsContent: {
+    paddingRight: 20,
+    gap: 10,
+  },
+  tabChip: {
+    paddingVertical: 8,
+    paddingHorizontal: 18,
+    borderRadius: 25,
+    minWidth: 70,
+    alignItems: 'center',
+  },
+  tabChipText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+
+  // Task List
+  taskList: {
+    paddingBottom: 100, // Space for FAB
+  },
+  emptyTasks: {
+    alignItems: 'center',
+    marginTop: 50,
+  },
+  emptyText: {
+    fontSize: 16,
+  },
+
+  // AI Floating Button
+  aiFloatingButton: {
     position: 'absolute',
-    right: 25,
-    bottom: 25,
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+    bottom: 110,
+    right: 20,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
     justifyContent: 'center',
     alignItems: 'center',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
-    shadowRadius: 4,
+    shadowRadius: 8,
     elevation: 8,
+    zIndex: 100,
   },
-  // --- AI Modal Styles ---
+
+  // --- Enhanced AI Modal Styles ---
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
+    justifyContent: 'flex-end',
   },
-  aiModalContainer: {
-    width: '100%',
-    borderRadius: 20,
-    padding: 20,
+  modalBackdrop: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+  },
+  aiBottomSheet: {
+    borderTopLeftRadius: 25,
+    borderTopRightRadius: 25,
+    padding: 25,
+    paddingBottom: 40,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 5,
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    elevation: 10,
+    minHeight: 350,
+  },
+  dragHandleContainer: {
+    alignItems: 'center',
+    marginBottom: 15,
+  },
+  dragHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    opacity: 0.5,
   },
   aiModalHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 20,
   },
-  aiTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  aiIconBadge: {
+    padding: 10,
+    borderRadius: 14,
+    marginRight: 15,
+  },
+  aiTitleContainer: {
+    flex: 1,
   },
   aiModalTitle: {
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: 'bold',
   },
-  aiInstruction: {
-    fontSize: 16,
-    marginBottom: 15,
+  aiModalSubtitle: {
+    fontSize: 14,
+    marginTop: 2,
   },
-  aiInputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderRadius: 12,
-    paddingHorizontal: 15,
+  closeButton: {
+    padding: 5,
+  },
+  aiInputWrapper: {
     marginBottom: 20,
   },
   aiTextInput: {
-    flex: 1,
-    paddingVertical: 15,
+    borderRadius: 16,
+    padding: 15,
     fontSize: 16,
-    minHeight: 50,
+    borderWidth: 1,
+    minHeight: 100,
   },
-  micButton: {
-    padding: 10,
+  inputFooter: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    marginTop: 8,
   },
-  askAiButton: {
-    borderRadius: 12,
-    paddingVertical: 15,
-    alignItems: 'center',
-  },
-  askAiButtonText: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: 'bold',
+  inputHint: {
+    fontSize: 12,
   },
   aiLoadingContainer: {
     alignItems: 'center',
-    paddingVertical: 20,
+    paddingVertical: 40,
   },
   aiLoadingText: {
-    marginTop: 10,
+    marginTop: 15,
     fontSize: 16,
+    fontWeight: '500',
   },
-  aiResultContainer: {
-    marginTop: 10,
-  },
-  aiResultLabel: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 10,
+  
+  // AI Result Card
+  aiResultWrapper: {
+    marginBottom: 25,
   },
   recommendationCard: {
-    padding: 15,
-    borderRadius: 12,
-    borderLeftWidth: 4,
-    marginBottom: 20,
+    borderRadius: 20,
+    padding: 20,
+    borderWidth: 1,
+    borderLeftWidth: 6, // Accent border
+  },
+  recommendationHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
   },
   recommendationTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    marginBottom: 5,
+    flex: 1,
+    marginRight: 10,
   },
-  recommendationDetail: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 5,
+  timeBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+  },
+  timeBadgeText: {
+    color: '#FFF',
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  recommendationMeta: {
+    marginBottom: 15,
+  },
+  recommendationDate: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  divider: {
+    height: 1,
+    backgroundColor: 'rgba(0,0,0,0.05)',
+    marginBottom: 15,
   },
   recommendationReason: {
     fontSize: 14,
     fontStyle: 'italic',
+    lineHeight: 20,
   },
-  addToScheduleButton: {
-    borderRadius: 12,
-    paddingVertical: 15,
+
+  // Modal Actions
+  aiActions: {
+    marginTop: 10,
+  },
+  fullWidthButton: {
+    width: '100%',
+    shadowColor: '#FF9500',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  gradientButton: {
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    borderRadius: 16,
   },
-  addToScheduleText: {
-    color: '#fff',
+  gradientButtonText: {
+    color: '#FFF',
     fontSize: 18,
     fontWeight: 'bold',
   },
-  // --- Toast Styles ---
+  resultActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 15,
+  },
+  actionButton: {
+    flex: 1,
+    paddingVertical: 15,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  actionButtonText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+
+  // Toast
   toastContainer: {
       position: 'absolute',
-      bottom: 100, // Adjusted to be visible above bottom tabs
+      bottom: 110,
       alignSelf: 'center',
-      paddingVertical: 10,
-      paddingHorizontal: 20,
-      borderRadius: 20,
-      alignItems: 'center',
-      justifyContent: 'center',
+      paddingVertical: 12,
+      paddingHorizontal: 24,
+      borderRadius: 30,
       borderWidth: 1,
-      zIndex: 1000, // Ensure it's on top
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.1,
+      shadowRadius: 4,
+      elevation: 5,
   },
   toastText: {
       fontSize: 14,

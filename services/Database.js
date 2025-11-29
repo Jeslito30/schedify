@@ -104,7 +104,6 @@ export const addTask = async (db, task) => {
   }
 };
 
-// --- NEW DELETE FUNCTION ---
 export const deleteTask = async (db, taskId) => {
   try {
     await db.runAsync('DELETE FROM tasks WHERE id = ?', [taskId]);
@@ -239,6 +238,7 @@ export const updateTask = async (db, task) => {
 
 // Helper to parse date strings (YYYY-MM-DD)
 const parseDate = (dateString) => {
+    if (!dateString) return null;
     const [year, month, day] = dateString.split('-').map(Number);
     return new Date(year, month - 1, day);
 };
@@ -309,5 +309,88 @@ export const getRepeatingTasksInDateRange = async (db, userId, rangeStartDate, r
   } catch (error) {
     console.error("Database get repeating tasks in date range error:", error);
     throw error;
+  }
+};
+
+// --- CHECK SCHEDULE CONFLICT ---
+export const checkForScheduleConflict = async (db, userId, newSchedule, excludeTaskId = null) => {
+  try {
+    // Fetch all existing schedules (exclude regular 'Task' items)
+    const allSchedules = await db.getAllAsync(
+      "SELECT * FROM tasks WHERE userId = ? AND type != 'Task'",
+      [userId]
+    );
+
+    const getDayName = (dateObj) => {
+      const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+      return days[dateObj.getDay()];
+    };
+
+    for (const existing of allSchedules) {
+      // Skip self when editing
+      if (excludeTaskId && existing.id === excludeTaskId) continue;
+
+      // 1. Time Check: If times don't match exactly, we assume no conflict for this app logic
+      if (existing.time !== newSchedule.time) continue;
+
+      // 2. Date Range & Pattern Logic
+      const existIsRepeat = existing.repeat_frequency && existing.repeat_frequency !== 'none';
+      const newIsRepeat = newSchedule.repeat_frequency && newSchedule.repeat_frequency !== 'none';
+
+      const existStart = parseDate(existing.start_date || existing.date);
+      // If end_date is null, treat as infinite future (arbitrary large date)
+      const existEnd = existing.end_date ? parseDate(existing.end_date) : new Date(8640000000000000);
+      
+      const newStart = parseDate(newSchedule.start_date || newSchedule.date);
+      const newEnd = newSchedule.end_date ? parseDate(newSchedule.end_date) : new Date(8640000000000000);
+
+      // Check if Date Ranges Overlap at all
+      // If one starts after the other ends, no conflict
+      if (newStart > existEnd || newEnd < existStart) continue;
+
+      // If Ranges overlap, check specific collisions
+      
+      // Case A: Both are One-Time
+      if (!existIsRepeat && !newIsRepeat) {
+        if (existing.date === newSchedule.date) return true;
+        continue;
+      }
+
+      // Case B: One is One-Time, One is Repeating
+      if (!existIsRepeat || !newIsRepeat) {
+        const oneTimeDate = !existIsRepeat ? existStart : newStart;
+        const repeatingSchedule = existIsRepeat ? existing : newSchedule;
+        const repeatingDays = typeof repeatingSchedule.repeat_days === 'string' 
+            ? JSON.parse(repeatingSchedule.repeat_days) 
+            : repeatingSchedule.repeat_days || [];
+
+        if (repeatingSchedule.repeat_frequency === 'daily') return true;
+        if (repeatingSchedule.repeat_frequency === 'weekly') {
+          const day = getDayName(oneTimeDate);
+          if (repeatingDays.includes(day)) return true;
+        }
+        continue;
+      }
+
+      // Case C: Both are Repeating
+      if (existIsRepeat && newIsRepeat) {
+        // If either is daily, and ranges overlap (which we checked), they conflict
+        if (existing.repeat_frequency === 'daily' || newSchedule.repeat_frequency === 'daily') return true;
+        
+        // Both are weekly: check if they share any day of the week
+        if (existing.repeat_frequency === 'weekly' && newSchedule.repeat_frequency === 'weekly') {
+          const days1 = typeof existing.repeat_days === 'string' ? JSON.parse(existing.repeat_days) : existing.repeat_days || [];
+          const days2 = typeof newSchedule.repeat_days === 'string' ? JSON.parse(newSchedule.repeat_days) : newSchedule.repeat_days || [];
+          
+          const hasCommonDay = days1.some(d => days2.includes(d));
+          if (hasCommonDay) return true;
+        }
+      }
+    }
+
+    return false; // No conflict found
+  } catch (error) {
+    console.error("Error checking conflict:", error);
+    return false; // Fail safe
   }
 };
