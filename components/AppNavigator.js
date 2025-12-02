@@ -1,8 +1,8 @@
 import React from 'react';
-import { StyleSheet, Platform, View } from 'react-native';
+import { StyleSheet, Platform, View, TouchableOpacity } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
-import { Home, Calendar, User, XCircle } from 'lucide-react-native';
+import { Home, Calendar, User, XCircle, Sparkles } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import MaskedView from '@react-native-masked-view/masked-view';
 import { useTheme } from '../context/ThemeContext';
@@ -13,15 +13,14 @@ import PlannerScreen from '../screens/PlannerScreen';
 import MissedScreen from '../screens/MissedScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 import AddScreen from '../screens/AddScreen';
+import AiAssistantScreen from '../screens/AiAssistantScreen'; // NEW IMPORT
 
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
 
 // Helper Component for Gradient Icons
 const GradientIcon = ({ IconComponent, size = 24, colors }) => (
-  <MaskedView
-    maskElement={<IconComponent size={size} color="black" />}
-  >
+  <MaskedView maskElement={<IconComponent size={size} color="black" />}>
     <LinearGradient
       colors={[colors.accentOrange, colors.progressRed]}
       start={{ x: 0, y: 0 }}
@@ -31,7 +30,42 @@ const GradientIcon = ({ IconComponent, size = 24, colors }) => (
   </MaskedView>
 );
 
-// UPDATED: Destructure onUpdateUser
+// Custom Central AI Button Component
+const AiTabButton = ({ onPress, colors }) => (
+  <TouchableOpacity
+    style={{
+      top: -20, // Move it up to break the bar line
+      justifyContent: 'center',
+      alignItems: 'center',
+      // Shadow
+      shadowColor: colors.accentOrange,
+      shadowOffset: { width: 0, height: 8 },
+      shadowOpacity: 0.35,
+      shadowRadius: 10,
+      elevation: 10,
+    }}
+    onPress={onPress}
+    activeOpacity={0.8}
+  >
+    <LinearGradient
+      colors={[colors.accentOrange, colors.progressRed]}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+      style={{
+        width: 64,
+        height: 64,
+        borderRadius: 32,
+        borderWidth: 4,
+        borderColor: colors.card, // Match Tab Bar background for cutout effect
+        justifyContent: 'center',
+        alignItems: 'center',
+      }}
+    >
+      <Sparkles size={28} color="#FFF" />
+    </LinearGradient>
+  </TouchableOpacity>
+);
+
 const TabNavigator = ({ user, onLogout, onUpdateUser }) => {
   const { colors } = useTheme();
 
@@ -44,7 +78,7 @@ const TabNavigator = ({ user, onLogout, onUpdateUser }) => {
         tabBarLabelStyle: styles.tabLabel,
         tabBarActiveTintColor: colors.accentOrange,
         tabBarInactiveTintColor: colors.textSecondary,
-        tabBarHideOnKeyboard: true, 
+        tabBarHideOnKeyboard: true,
       }}
     >
       <Tab.Screen
@@ -53,9 +87,7 @@ const TabNavigator = ({ user, onLogout, onUpdateUser }) => {
         options={{
           tabBarLabel: 'Home',
           tabBarIcon: ({ focused, color }) => (
-            focused 
-              ? <GradientIcon IconComponent={Home} size={26} colors={colors} /> 
-              : <Home size={24} color={color} />
+            focused ? <GradientIcon IconComponent={Home} size={26} colors={colors} /> : <Home size={24} color={color} />
           ),
         }}
       />
@@ -65,34 +97,43 @@ const TabNavigator = ({ user, onLogout, onUpdateUser }) => {
         options={{
           tabBarLabel: 'Planner',
           tabBarIcon: ({ focused, color }) => (
-            focused 
-              ? <GradientIcon IconComponent={Calendar} size={26} colors={colors} /> 
-              : <Calendar size={24} color={color} />
+            focused ? <GradientIcon IconComponent={Calendar} size={26} colors={colors} /> : <Calendar size={24} color={color} />
           ),
         }}
       />
+      
+      {/* Central AI Tab */}
+      <Tab.Screen
+        name="AiTab"
+        component={View} // Dummy component
+        options={({ navigation }) => ({
+          tabBarLabel: '',
+          tabBarButton: (props) => (
+            <AiTabButton
+              colors={colors}
+              onPress={() => navigation.navigate('AiAssistant', { user: user })}
+            />
+          ),
+        })}
+      />
+
       <Tab.Screen
         name="MissedTab"
         children={(props) => <MissedScreen {...props} user={user} />}
         options={{
           tabBarLabel: 'Missed',
           tabBarIcon: ({ focused, color }) => (
-            focused 
-              ? <GradientIcon IconComponent={XCircle} size={26} colors={colors} /> 
-              : <XCircle size={24} color={color} />
+            focused ? <GradientIcon IconComponent={XCircle} size={26} colors={colors} /> : <XCircle size={24} color={color} />
           ),
         }}
       />
       <Tab.Screen
         name="ProfileTab"
-        // UPDATED: Pass onUpdateUser to ProfileScreen
         children={(props) => <ProfileScreen {...props} user={user} onLogout={onLogout} onUpdateUser={onUpdateUser} />}
         options={{
           tabBarLabel: 'Profile',
           tabBarIcon: ({ focused, color }) => (
-            focused 
-              ? <GradientIcon IconComponent={User} size={26} colors={colors} /> 
-              : <User size={24} color={color} />
+            focused ? <GradientIcon IconComponent={User} size={26} colors={colors} /> : <User size={24} color={color} />
           ),
         }}
       />
@@ -100,7 +141,6 @@ const TabNavigator = ({ user, onLogout, onUpdateUser }) => {
   );
 };
 
-// UPDATED: Destructure onUpdateUser and pass to TabNavigator
 const AppNavigator = ({ user, onLogout, onUpdateUser }) => {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
@@ -116,6 +156,16 @@ const AppNavigator = ({ user, onLogout, onUpdateUser }) => {
           gestureEnabled: true,
         }} 
       />
+      {/* Register the AI Screen as a Transparent Modal */}
+      <Stack.Screen
+        name="AiAssistant"
+        component={AiAssistantScreen}
+        options={{
+          presentation: 'transparentModal',
+          animationEnabled: true,
+          cardStyle: { backgroundColor: 'transparent' }, // Ensures transparency
+        }}
+      />
     </Stack.Navigator>
   );
 };
@@ -125,12 +175,12 @@ const styles = StyleSheet.create({
     backgroundColor: colors.card,
     borderTopWidth: 1,
     borderTopColor: colors.border,
-    height: 65,
+    height: 70, // Slightly taller to accommodate the button
     paddingTop: 5,
-    paddingBottom: Platform.OS === 'ios' ? 0 : 5,
+    paddingBottom: Platform.OS === 'ios' ? 20 : 5,
   }),
   tabLabel: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '600',
     marginBottom: 5,
   }
