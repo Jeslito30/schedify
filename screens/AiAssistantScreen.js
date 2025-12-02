@@ -9,11 +9,13 @@ import { getScheduleRecommendation } from '../services/AiServices';
 import { Wand2, X, Sparkles, Calendar } from 'lucide-react-native';
 import { useTheme } from '../context/ThemeContext';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const AiAssistantScreen = ({ navigation, route }) => {
     const { user } = route.params;
     const { colors } = useTheme();
     const db = useSQLiteContext();
+    const insets = useSafeAreaInsets();
 
     const [aiPrompt, setAiPrompt] = useState('');
     const [aiResult, setAiResult] = useState(null);
@@ -58,11 +60,18 @@ const AiAssistantScreen = ({ navigation, route }) => {
             />
             
             <KeyboardAvoidingView 
+                // UPDATED: Use 'height' for Android to correctly resize the container when keyboard opens
                 behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
                 style={styles.aiKeyboardContainer}
                 pointerEvents="box-none"
             >
-                <View style={[styles.aiBottomSheet, { backgroundColor: colors.card }]}>
+                <View style={[
+                    styles.aiBottomSheet, 
+                    { 
+                        backgroundColor: colors.card,
+                        paddingBottom: Math.max(insets.bottom, 20) 
+                    }
+                ]}>
                     <View style={styles.dragHandleContainer}>
                         <View style={[styles.dragHandle, { backgroundColor: colors.border }]} />
                     </View>
@@ -119,7 +128,7 @@ const AiAssistantScreen = ({ navigation, route }) => {
                     {/* Result Card */}
                     {aiResult && !isAiLoading && (
                         <View style={styles.aiResultWrapper}>
-                            <View style={[styles.recommendationCard, { backgroundColor: colors.background, borderColor: colors.accentOrange }]}>
+                            <View style={[styles.recommendationCard, { backgroundColor: colors.background, borderColor: colors.border }]}>
                                 <View style={styles.recommendationHeader}>
                                     <Text style={[styles.recommendationTitle, { color: colors.textPrimary }]}>{aiResult.title}</Text>
                                     <View style={[styles.timeBadge, { backgroundColor: colors.accentOrange }]}>
@@ -198,9 +207,10 @@ const styles = StyleSheet.create({
     aiBottomSheet: {
         borderTopLeftRadius: 25,
         borderTopRightRadius: 25,
-        padding: 25,
-        paddingBottom: 40,
+        paddingHorizontal: 25,
+        paddingTop: 25,
         minHeight: 350,
+        width: '100%',
     },
     dragHandleContainer: {
         alignItems: 'center',
@@ -270,7 +280,6 @@ const styles = StyleSheet.create({
         borderRadius: 20,
         padding: 20,
         borderWidth: 1,
-        borderLeftWidth: 6,
     },
     recommendationHeader: {
         flexDirection: 'row',
