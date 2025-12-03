@@ -1,17 +1,16 @@
 import * as SQLite from 'expo-sqlite';
 
-// ... (initDB, insertUser, getUser, addTask, deleteTask remain unchanged) ...
-
 export const initDB = async (db) => {
   try {
     await db.execAsync(`
-  
+     
       CREATE TABLE IF NOT EXISTS users (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT NOT NULL,
         email TEXT NOT NULL UNIQUE,
         password TEXT NOT NULL,
-        profile_picture TEXT
+        profile_picture TEXT,
+        notifications_enabled INTEGER DEFAULT 1
       );
 
       CREATE TABLE IF NOT EXISTS tasks (
@@ -39,6 +38,7 @@ export const initDB = async (db) => {
       { name: 'start_date', type: 'TEXT' },
       { name: 'end_date', type: 'TEXT' },
       { name: 'notification_id', type: 'TEXT' },
+      { name: 'missed_notification_id', type: 'TEXT' },
       { name: 'reminder_minutes', type: 'INTEGER DEFAULT 5' }
     ];
 
@@ -48,6 +48,12 @@ export const initDB = async (db) => {
         await db.execAsync(`ALTER TABLE tasks ADD COLUMN ${col.name} ${col.type};`);
         console.log(`Added '${col.name}' column to 'tasks' table.`);
       }
+    }
+    
+    // Check users table for notifications_enabled
+    const userInfo = await db.getAllAsync("PRAGMA table_info(users);");
+    if (!userInfo.some(info => info.name === 'notifications_enabled')) {
+        await db.execAsync(`ALTER TABLE users ADD COLUMN notifications_enabled INTEGER DEFAULT 1;`);
     }
 
   } catch (error) {
@@ -59,10 +65,10 @@ export const initDB = async (db) => {
 export const insertUser = async (db, name, email, password) => {
   try {
     await db.runAsync(
-      'INSERT INTO users (name, email, password) VALUES (?, ?, ?)',
+      'INSERT INTO users (name, email, password, notifications_enabled) VALUES (?, ?, ?, 1)',
       [name, email, password]
     );
-    const result = await db.getFirstAsync('SELECT id, name, email FROM users WHERE email = ?', [email]);
+    const result = await db.getFirstAsync('SELECT * FROM users WHERE email = ?', [email]);
     return result;
   } catch (error) {
     if (error.message.includes('UNIQUE constraint failed: users.email')) {
@@ -76,7 +82,7 @@ export const insertUser = async (db, name, email, password) => {
 export const getUser = async (db, email, password) => {
   try {
     const users = await db.getAllAsync(
-      'SELECT id, name, email, profile_picture FROM users WHERE email = ? AND password = ?',
+      'SELECT * FROM users WHERE email = ? AND password = ?',
       [email, password]
     );
     return users; 
@@ -86,23 +92,36 @@ export const getUser = async (db, email, password) => {
   }
 };
 
+export const updateUserNotifications = async (db, userId, enabled) => {
+    try {
+        await db.runAsync(
+            'UPDATE users SET notifications_enabled = ? WHERE id = ?',
+            [enabled ? 1 : 0, userId]
+        );
+    } catch (error) {
+        console.error("Failed to update notification settings:", error);
+    }
+};
+
 export const addTask = async (db, task) => {
   try {
     const { 
       title, description, date, time, type, location, userId, 
       repeat_frequency, repeat_days, start_date, end_date, 
-      notification_id, reminder_minutes 
+      notification_id, missed_notification_id, reminder_minutes 
     } = task;
     
     await db.runAsync(
-      'INSERT INTO tasks (title, description, date, time, type, location, userId, repeat_frequency, repeat_days, start_date, end_date, notification_id, reminder_minutes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [title, description, date, time, type, location, userId, repeat_frequency, repeat_days, start_date, end_date, notification_id, reminder_minutes]
+      'INSERT INTO tasks (title, description, date, time, type, location, userId, repeat_frequency, repeat_days, start_date, end_date, notification_id, missed_notification_id, reminder_minutes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [title, description, date, time, type, location, userId, repeat_frequency, repeat_days, start_date, end_date, notification_id, missed_notification_id, reminder_minutes]
     );
   } catch (error) {
     console.error("Database add task error:", error);
     throw error;
   }
 };
+
+// ... (deleteTask, getTasks, getAllTasks, etc. remain mostly unchanged) ...
 
 export const deleteTask = async (db, taskId) => {
   try {
@@ -155,7 +174,7 @@ export const getTasksByDate = async (db, userId, date) => {
 export const getUpcomingTasks = async (db, userId, date) => {
   try {
     const tasks = await db.getAllAsync(
-      'SELECT * FROM tasks WHERE userId = ? AND date > ?',
+      "SELECT * FROM tasks WHERE userId = ? AND date >= ? AND status = 'pending'",
       [userId, date]
     );
     return tasks;
@@ -194,6 +213,17 @@ export const getMissedTasks = async (db, userId) => {
   }
 }
 
+// Helper to get a single task (useful for notification cancellation)
+export const getTaskById = async (db, taskId) => {
+    try {
+        const task = await db.getFirstAsync('SELECT * FROM tasks WHERE id = ?', [taskId]);
+        return task;
+    } catch (error) {
+        console.error("Failed to get task by id", error);
+        return null;
+    }
+};
+
 export const updateTaskStatus = async (db, taskId, status) => {
   try {
     await db.runAsync(
@@ -223,12 +253,12 @@ export const updateTask = async (db, task) => {
     const { 
       id, title, description, date, time, type, location, 
       repeat_frequency, repeat_days, start_date, end_date,
-      notification_id, reminder_minutes
+      notification_id, missed_notification_id, reminder_minutes
     } = task;
     
     await db.runAsync(
-      'UPDATE tasks SET title = ?, description = ?, date = ?, time = ?, type = ?, location = ?, repeat_frequency = ?, repeat_days = ?, start_date = ?, end_date = ?, notification_id = ?, reminder_minutes = ? WHERE id = ?',
-      [title, description, date, time, type, location, repeat_frequency, repeat_days, start_date, end_date, notification_id, reminder_minutes, id]
+      'UPDATE tasks SET title = ?, description = ?, date = ?, time = ?, type = ?, location = ?, repeat_frequency = ?, repeat_days = ?, start_date = ?, end_date = ?, notification_id = ?, missed_notification_id = ?, reminder_minutes = ? WHERE id = ?',
+      [title, description, date, time, type, location, repeat_frequency, repeat_days, start_date, end_date, notification_id, missed_notification_id, reminder_minutes, id]
     );
   } catch (error) {
     console.error("Database update task error:", error);
@@ -236,14 +266,24 @@ export const updateTask = async (db, task) => {
   }
 };
 
-// Helper to parse date strings (YYYY-MM-DD)
+export const updateTaskNotifications = async (db, taskId, notifId, missedNotifId) => {
+    try {
+        await db.runAsync(
+            'UPDATE tasks SET notification_id = ?, missed_notification_id = ? WHERE id = ?',
+            [notifId, missedNotifId, taskId]
+        );
+    } catch (error) {
+        console.error("Failed to update task notifications", error);
+    }
+}
+
+// ... (parseDate, formatDate, normalizeTimeForComparison, getRepeatingTasksInDateRange, checkForScheduleConflict remain unchanged) ...
 const parseDate = (dateString) => {
     if (!dateString) return null;
     const [year, month, day] = dateString.split('-').map(Number);
     return new Date(year, month - 1, day);
 };
 
-// Helper to format date objects to YYYY-MM-DD
 const formatDate = (date) => {
     const year = date.getFullYear();
     const month = (date.getMonth() + 1).toString().padStart(2, '0');
@@ -251,7 +291,6 @@ const formatDate = (date) => {
     return `${year}-${month}-${day}`;
 };
 
-// NEW: Helper to normalize time strings (e.g. "8:00 AM" -> "08:00 AM")
 const normalizeTimeForComparison = (timeStr) => {
     if (!timeStr) return '';
     const parts = timeStr.trim().split(' ');
@@ -260,7 +299,6 @@ const normalizeTimeForComparison = (timeStr) => {
     let [time, modifier] = parts;
     let [hours, minutes] = time.split(':');
     
-    // Ensure 2-digit hour
     if (hours.length === 1) hours = `0${hours}`;
     
     return `${hours}:${minutes} ${modifier}`;
@@ -279,20 +317,17 @@ export const getRepeatingTasksInDateRange = async (db, userId, rangeStartDate, r
 
     for (const task of allTasks) {
       if (task.repeat_frequency === 'none' || !task.repeat_frequency) {
-        // Add non-repeating tasks if their date falls within the range
         const taskDate = parseDate(task.date);
         if (taskDate >= parsedRangeStartDate && taskDate <= parsedRangeEndDate) {
             generatedTasks.push(task);
         }
       } else {
-        // Handle repeating tasks
         const taskStartDate = task.start_date ? parseDate(task.start_date) : parseDate(task.date);
         const taskEndDate = task.end_date ? parseDate(task.end_date) : null;
-        const originalTime = task.time; // Store original time
+        const originalTime = task.time; 
 
         let currentDate = new Date(taskStartDate);
         while (currentDate <= parsedRangeEndDate && (!taskEndDate || currentDate <= taskEndDate)) {
-          // Check if current date is within the overall repeat range and within the requested display range
           if (currentDate >= parsedRangeStartDate) {
             let shouldAdd = false;
             if (task.repeat_frequency === 'daily') {
@@ -308,15 +343,13 @@ export const getRepeatingTasksInDateRange = async (db, userId, rangeStartDate, r
             if (shouldAdd) {
               generatedTasks.push({
                 ...task,
-                // Override the date with the generated occurrence date
                 date: formatDate(currentDate),
                 time: originalTime,
-                // Assign a unique ID for rendering, combining original task ID and occurrence date
                 id: `${task.id}-${formatDate(currentDate)}`,
               });
             }
           }
-          currentDate.setDate(currentDate.getDate() + 1); // Move to the next day
+          currentDate.setDate(currentDate.getDate() + 1); 
         }
       }
     }
@@ -327,10 +360,8 @@ export const getRepeatingTasksInDateRange = async (db, userId, rangeStartDate, r
   }
 };
 
-// --- CHECK SCHEDULE CONFLICT ---
 export const checkForScheduleConflict = async (db, userId, newSchedule, excludeTaskId = null) => {
   try {
-    // Fetch all existing schedules (exclude regular 'Task' items)
     const allSchedules = await db.getAllAsync(
       "SELECT * FROM tasks WHERE userId = ? AND type != 'Task'",
       [userId]
@@ -341,39 +372,30 @@ export const checkForScheduleConflict = async (db, userId, newSchedule, excludeT
       return days[dateObj.getDay()];
     };
 
-    // Normalize the new schedule time for safe comparison
     const newTimeNormalized = normalizeTimeForComparison(newSchedule.time);
 
     for (const existing of allSchedules) {
-      // Skip self when editing
       if (excludeTaskId && existing.id === excludeTaskId) continue;
 
-      // 1. Time Check: Normalize existing time before comparing
       const existingTimeNormalized = normalizeTimeForComparison(existing.time);
-      
       if (existingTimeNormalized !== newTimeNormalized) continue;
 
-      // 2. Date Range & Pattern Logic
       const existIsRepeat = existing.repeat_frequency && existing.repeat_frequency !== 'none';
       const newIsRepeat = newSchedule.repeat_frequency && newSchedule.repeat_frequency !== 'none';
 
       const existStart = parseDate(existing.start_date || existing.date);
-      // If end_date is null, treat as infinite future
       const existEnd = existing.end_date ? parseDate(existing.end_date) : new Date(8640000000000000);
       
       const newStart = parseDate(newSchedule.start_date || newSchedule.date);
       const newEnd = newSchedule.end_date ? parseDate(newSchedule.end_date) : new Date(8640000000000000);
 
-      // Check if Date Ranges Overlap at all (if not overlapping, no conflict)
       if (newStart > existEnd || newEnd < existStart) continue;
 
-      // Case A: Both are One-Time
       if (!existIsRepeat && !newIsRepeat) {
         if (existing.date === newSchedule.date) return true;
         continue;
       }
 
-      // Case B: One is One-Time, One is Repeating
       if (!existIsRepeat || !newIsRepeat) {
         const oneTimeDate = !existIsRepeat ? existStart : newStart;
         const repeatingSchedule = existIsRepeat ? existing : newSchedule;
@@ -389,7 +411,6 @@ export const checkForScheduleConflict = async (db, userId, newSchedule, excludeT
         continue;
       }
 
-      // Case C: Both are Repeating
       if (existIsRepeat && newIsRepeat) {
         if (existing.repeat_frequency === 'daily' || newSchedule.repeat_frequency === 'daily') return true;
         
@@ -403,7 +424,7 @@ export const checkForScheduleConflict = async (db, userId, newSchedule, excludeT
       }
     }
 
-    return false; // No conflict found
+    return false;
   } catch (error) {
     console.error("Error checking conflict:", error);
     return false; 

@@ -9,14 +9,25 @@ import AppNavigator from './components/AppNavigator';
 import { ThemeProvider, useTheme } from './context/ThemeContext'; 
 import { registerForPushNotificationsAsync } from './services/NotificationService'; 
 
+// Separate component to access useTheme
 const ScreenManager = () => {
   const [appState, setAppState] = useState('login');
   const [loggedInUser, setLoggedInUser] = useState(null);
-  const { theme } = useTheme(); 
+  const { theme, setNotificationsEnabled } = useTheme(); // Get setter
 
   useEffect(() => {
     registerForPushNotificationsAsync();
   }, []);
+
+  // NEW: Sync Database Setting to App State on Login
+  useEffect(() => {
+    if (loggedInUser) {
+      // If database has 1 (true) or 0 (false), update context
+      // Default to true if undefined
+      const isEnabled = loggedInUser.notifications_enabled !== 0; 
+      setNotificationsEnabled(isEnabled);
+    }
+  }, [loggedInUser]);
 
   const navigationTheme = theme === 'dark' ? DarkTheme : DefaultTheme;
 
@@ -53,7 +64,6 @@ const ScreenManager = () => {
             setLoggedInUser(null);
             setAppState('login');
           }}
-          // NEW: Pass a function to update the user state
           onUpdateUser={(updatedUser) => setLoggedInUser(updatedUser)}
         />
       </NavigationContainer>

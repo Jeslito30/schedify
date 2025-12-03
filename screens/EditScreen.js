@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, TextInput, StyleSheet, TouchableOpacity, Platform, ScrollView, KeyboardAvoidingView } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { scheduleTaskNotification, cancelTaskNotification } from '../services/NotificationService';
+import { scheduleTaskNotification, cancelTaskNotification, scheduleMissedNotification } from '../services/NotificationService';
 import { updateTask, checkForScheduleConflict } from '../services/Database';
 import { useSQLiteContext } from 'expo-sqlite';
 import { ChevronLeft, Calendar, Clock, MapPin, AlignLeft, Tag, Save, XCircle, Repeat, Bell, CheckSquare, BookOpen, Users, Briefcase } from 'lucide-react-native';
@@ -26,7 +26,7 @@ const taskCategories = [
 
 const EditScreen = ({ task, onClose }) => {
     const db = useSQLiteContext();
-    const { colors } = useTheme();
+    const { colors, isNotificationsEnabled } = useTheme();
 
     // --- Custom Alert State ---
     const [alertConfig, setAlertConfig] = useState({
@@ -190,19 +190,31 @@ const EditScreen = ({ task, onClose }) => {
             }
         }
 
-        let newNotificationId = task.notification_id;
-        
-        if (task.notification_id) {
-            await cancelTaskNotification(task.notification_id);
-        }
+        // Cancel OLD notifications
+        if (task.notification_id) await cancelTaskNotification(task.notification_id);
+        if (task.missed_notification_id) await cancelTaskNotification(task.missed_notification_id);
 
-        newNotificationId = await scheduleTaskNotification(
-            title, 
-            finalDate, 
-            timeString, 
-            reminderMinutes,
-            activeType 
-        );
+        let newNotificationId = null;
+        let newMissedNotificationId = null;
+
+        if (isNotificationsEnabled) {
+             newNotificationId = await scheduleTaskNotification(
+                title, 
+                finalDate, 
+                timeString, 
+                reminderMinutes,
+                activeType 
+            );
+
+            if (repeatFrequency === 'none') {
+                newMissedNotificationId = await scheduleMissedNotification(
+                    title,
+                    finalDate,
+                    timeString,
+                    activeType
+                );
+            }
+        }
 
         const updatedTask = {
             id: originalTaskId,
@@ -217,6 +229,7 @@ const EditScreen = ({ task, onClose }) => {
             start_date: activeType === 'Schedule' ? formatDate(startDate) : null,
             end_date: activeType === 'Schedule' ? formatDate(endDate) : null,
             notification_id: newNotificationId,
+            missed_notification_id: newMissedNotificationId,
             reminder_minutes: reminderMinutes
         };
 

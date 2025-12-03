@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useSQLiteContext } from 'expo-sqlite';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { addTask, checkForScheduleConflict } from '../services/Database';
-import { scheduleTaskNotification } from '../services/NotificationService';
+import { scheduleTaskNotification, scheduleMissedNotification } from '../services/NotificationService';
 import { ChevronLeft, Check, Calendar, Clock, Briefcase, BookOpen, Repeat, Users, CheckSquare, MapPin, Bell, AlignLeft, Tag } from 'lucide-react-native';
 import { useTheme } from '../context/ThemeContext';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -25,7 +25,7 @@ const taskCategories = [
 const weekDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 const AddScreen = ({ navigation, route, user: userProp }) => {
-    const { colors } = useTheme();
+    const { colors, isNotificationsEnabled } = useTheme();
     const db = useSQLiteContext();
     const user = route.params?.user || userProp;
     const prefilledData = route.params?.prefilledData;
@@ -221,17 +221,30 @@ const AddScreen = ({ navigation, route, user: userProp }) => {
 
             // Schedule notification for BOTH Tasks and Schedules
             let notificationId = null;
+            let missedNotificationId = null;
             
-            // Determine correct date variable based on type
             const targetDate = activeType === 'Task' ? dueDate : startDateString;
 
-            notificationId = await scheduleTaskNotification(
-                taskTitle, 
-                targetDate, 
-                dueTime, 
-                reminderMinutes,
-                activeType // Pass 'Task' or 'Schedule'
-            );
+            if (isNotificationsEnabled) {
+                // 1. Regular Reminder
+                notificationId = await scheduleTaskNotification(
+                    taskTitle, 
+                    targetDate, 
+                    dueTime, 
+                    reminderMinutes,
+                    activeType 
+                );
+
+                // 2. Missed Notification (Only for non-repeating items for simplicity)
+                if (repeatFrequency === 'none') {
+                    missedNotificationId = await scheduleMissedNotification(
+                        taskTitle,
+                        targetDate,
+                        dueTime,
+                        activeType
+                    );
+                }
+            }
 
             await addTask(db, {
                 title: taskTitle,
@@ -246,7 +259,8 @@ const AddScreen = ({ navigation, route, user: userProp }) => {
                 start_date: activeType === 'Schedule' ? startDateString : null,
                 end_date: activeType === 'Schedule' ? endDateString : null,
                 notification_id: notificationId,
-                reminder_minutes: reminderMinutes 
+                missed_notification_id: missedNotificationId, // SAVE THIS
+                reminder_minutes: reminderMinutes
             });
             
             showAlert('Success', `${activeType} added successfully!`, 'success', [{

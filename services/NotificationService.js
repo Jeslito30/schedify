@@ -1,9 +1,7 @@
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
 import { Platform, Alert } from 'react-native';
-import { Colors } from '../constants/Colors'; // Import colors for consistency
 
-// Configure how notifications appear when the app is in foreground
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowAlert: true,
@@ -18,16 +16,11 @@ export const registerForPushNotificationsAsync = async () => {
       name: 'default',
       importance: Notifications.AndroidImportance.MAX,
       vibrationPattern: [0, 250, 250, 250],
-      lightColor: '#FF9500', // Updated to match your App's Accent Orange
+      lightColor: '#FF9500', 
     });
   }
 
   if (!Device.isDevice) {
-    // Note: In a service file, we must use native Alerts as we can't render custom UI components here.
-    Alert.alert(
-      'Device Required',
-      'Push notifications are not supported on emulators. Please use a physical device.'
-    );
     return null;
   }
 
@@ -40,56 +33,46 @@ export const registerForPushNotificationsAsync = async () => {
   }
 
   if (finalStatus !== 'granted') {
-    Alert.alert('Permission Required', 'Please enable notifications in settings to receive task reminders.');
     return null;
   }
   
   return true;
 };
 
-// UPDATED: Accepts reminderMinutes and type to calculate the correct trigger time and customize content
+// Standard Reminder
 export const scheduleTaskNotification = async (title, date, time, reminderMinutes = 5, type = 'Task') => {
   try {
-    // Parse the date (YYYY-MM-DD)
     const [year, month, day] = date.split('-').map(Number);
-    
-    // Parse the time (HH:MM AM/PM)
     const [timePart, modifier] = time.split(' ');
     let [hours, minutes] = timePart.split(':').map(Number);
     
     if (hours === 12) hours = 0;
     if (modifier === 'PM') hours += 12;
 
-    // Create date object for the task time
     const taskDate = new Date(year, month - 1, day, hours, minutes);
     
-    // Calculate the actual notification trigger time
-    // Subtract the reminder minutes from the task time
+    // Trigger: Task Time - Reminder Minutes
     const triggerDate = new Date(taskDate.getTime() - (reminderMinutes * 60000));
 
-    // If the trigger time is in the past, don't schedule
     if (triggerDate < new Date()) return null;
 
-    // Determine Title and Body based on Type
     const isTask = type === 'Task';
     const notificationTitle = isTask ? "🔔 Upcoming Task" : "📅 Upcoming Schedule";
     const bodyText = isTask 
-        ? `Your task "${title}" starts in ${reminderMinutes > 0 ? `in ${reminderMinutes} minutes` : 'now'}!`
-        : `Your schedule "${title}" starts ${reminderMinutes > 0 ? `in ${reminderMinutes} minutes` : 'now'}!`;
-
+        ? `Your task "${title}" is due in ${reminderMinutes} minutes!`
+        : `Your schedule "${title}" starts in ${reminderMinutes} minutes!`;
 
     const id = await Notifications.scheduleNotificationAsync({
       content: {
         title: notificationTitle,
         body: bodyText,
         sound: 'default',
-        color: '#FF9500', // Android accent color
-        data: { date, time, type }, // Optional data payload
+        color: '#FF9500',
+        data: { date, time, type },
       },
       trigger: triggerDate,
     });
     
-    console.log(`Notification scheduled for ${triggerDate} with ID: ${id}`);
     return id;
   } catch (error) {
     console.error("Error scheduling notification:", error);
@@ -97,13 +80,58 @@ export const scheduleTaskNotification = async (title, date, time, reminderMinute
   }
 };
 
-// NEW: Helper to cancel a specific notification
+// Missed Notification (Scheduled for Due Time + 1 minute)
+export const scheduleMissedNotification = async (title, date, time, type = 'Task') => {
+    try {
+        const [year, month, day] = date.split('-').map(Number);
+        const [timePart, modifier] = time.split(' ');
+        let [hours, minutes] = timePart.split(':').map(Number);
+        
+        if (hours === 12) hours = 0;
+        if (modifier === 'PM') hours += 12;
+    
+        const taskDate = new Date(year, month - 1, day, hours, minutes);
+        
+        // Trigger: Task Time + 1 Minute
+        const triggerDate = new Date(taskDate.getTime() + (60000)); 
+    
+        if (triggerDate < new Date()) return null;
+    
+        const notificationTitle = "⚠️ Missed Task";
+        const bodyText = `You missed your task: "${title}".`;
+    
+        const id = await Notifications.scheduleNotificationAsync({
+          content: {
+            title: notificationTitle,
+            body: bodyText,
+            sound: 'default',
+            color: '#D32F2F', // Red for missed
+            data: { date, time, type, status: 'missed' },
+          },
+          trigger: triggerDate,
+        });
+        
+        return id;
+      } catch (error) {
+        console.error("Error scheduling missed notification:", error);
+        return null;
+      }
+};
+
 export const cancelTaskNotification = async (notificationId) => {
   if (!notificationId) return;
   try {
     await Notifications.cancelScheduledNotificationAsync(notificationId);
-    console.log(`Notification ${notificationId} cancelled`);
   } catch (error) {
     console.error("Error cancelling notification:", error);
   }
+};
+
+export const cancelAllNotifications = async () => {
+    try {
+        await Notifications.cancelAllScheduledNotificationsAsync();
+        console.log("All notifications cancelled.");
+    } catch (error) {
+        console.error("Error cancelling all notifications:", error);
+    }
 };

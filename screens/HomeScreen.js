@@ -3,13 +3,22 @@ import { View, Text, StyleSheet, FlatList, TouchableOpacity, Image, Modal, Anima
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { TaskCard } from '../components/TaskCard';
 import { useSQLiteContext } from 'expo-sqlite';
-import { getAllTasks, updateTaskStatus, deleteTask } from '../services/Database'; 
+import { 
+  getAllTasks, 
+  getTaskById, 
+  updateTaskStatus, 
+  deleteTask, 
+  updateUserNotifications, 
+  getUpcomingTasks, 
+  updateTaskNotifications 
+} from '../services/Database'; 
 import { useIsFocused } from '@react-navigation/native';
 import { Bell, BellOff, Sparkles, ListFilter, CheckCircle2 } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import EditScreen from './EditScreen';
 import { useTheme } from '../context/ThemeContext';
 import CustomAlert from '../components/CustomAlert';
+import { cancelTaskNotification, cancelAllNotifications, scheduleTaskNotification, scheduleMissedNotification } from '../services/NotificationService';
 
 const getCurrentDate = () => {
   const date = new Date();
@@ -143,6 +152,16 @@ const HomeScreen = ({ user, navigation }) => {
 
   const handleDone = async (taskId) => {
     try {
+      // 1. Fetch Task to get Notification IDs
+      const task = await getTaskById(db, taskId);
+      
+      // 2. Cancel Notifications if they exist
+      if (task) {
+          if (task.notification_id) await cancelTaskNotification(task.notification_id);
+          if (task.missed_notification_id) await cancelTaskNotification(task.missed_notification_id);
+      }
+
+      // 3. Update Status
       await updateTaskStatus(db, taskId, 'done');
       fetchTasks();
     } catch (error) {
@@ -152,6 +171,16 @@ const HomeScreen = ({ user, navigation }) => {
 
   const executeDeleteTask = async (taskId) => {
     try {
+        // 1. Fetch Task to get IDs
+        const task = await getTaskById(db, taskId);
+        
+        // 2. Cancel Notifications
+        if (task) {
+            if (task.notification_id) await cancelTaskNotification(task.notification_id);
+            if (task.missed_notification_id) await cancelTaskNotification(task.missed_notification_id);
+        }
+
+        // 3. Delete
         await deleteTask(db, taskId);
         fetchTasks();
         showToast("Task deleted successfully");
@@ -195,10 +224,49 @@ const HomeScreen = ({ user, navigation }) => {
   const dayName = getDayName();
   const formattedDate = getFormattedDate();
 
-  const handleNotificationPress = () => {
-    toggleNotifications();
-    const newState = !isNotificationsEnabled ? 'On' : 'Off';
-    showToast(`Notifications turned ${newState}`);
+  const handleNotificationPress = async () => {
+    const newStatus = !isNotificationsEnabled;
+    toggleNotifications(); // Flip UI state immediately
+    
+    // 1. Update Database
+    await updateUserNotifications(db, user.id, newStatus);
+
+    // 2. Handle System Notifications
+    if (!newStatus) {
+        // Turning OFF: Cancel ALL pending
+        await cancelAllNotifications();
+        showToast("Notifications disabled");
+    } else {
+        // Turning ON: Reschedule ALL future pending tasks
+        showToast("Rescheduling notifications...");
+        const today = new Date().toISOString().split('T')[0];
+        const upcomingTasks = await getUpcomingTasks(db, user.id, today);
+        
+        for (const task of upcomingTasks) {
+            // Schedule Standard
+            const notifId = await scheduleTaskNotification(
+                task.title, 
+                task.date, 
+                task.time, 
+                task.reminder_minutes || 5, 
+                task.type
+            );
+            
+            // Schedule Missed (if non-repeating)
+            let missedNotifId = null;
+            if (!task.repeat_frequency || task.repeat_frequency === 'none') {
+                missedNotifId = await scheduleMissedNotification(
+                    task.title,
+                    task.date,
+                    task.time,
+                    task.type
+                );
+            }
+
+            await updateTaskNotifications(db, task.id, notifId, missedNotifId);
+        }
+        showToast(`Notifications enabled`);
+    }
   };
 
   const toggleFilterVisibility = () => {

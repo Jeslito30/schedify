@@ -4,8 +4,7 @@ import { Colors } from '../constants/Colors';
 const ThemeContext = createContext();
 
 export const ThemeProvider = ({ children }) => {
-  const [theme, setTheme] = useState('light'); // Default to light
-  // Global Notification State
+  const [theme, setTheme] = useState('light');
   const [isNotificationsEnabled, setIsNotificationsEnabled] = useState(true);
 
   const toggleTheme = () => {
@@ -16,6 +15,11 @@ export const ThemeProvider = ({ children }) => {
     setIsNotificationsEnabled(prev => !prev);
   };
 
+  // NEW: Helper to set specific state (used when logging in)
+  const setNotificationsEnabled = (enabled) => {
+    setIsNotificationsEnabled(enabled);
+  };
+
   const themeColors = Colors[theme];
 
   return (
@@ -24,7 +28,8 @@ export const ThemeProvider = ({ children }) => {
         toggleTheme, 
         colors: themeColors,
         isNotificationsEnabled,
-        toggleNotifications
+        toggleNotifications,
+        setNotificationsEnabled // Export this new function
     }}>
       {children}
     </ThemeContext.Provider>
